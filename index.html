@@ -26,6 +26,7 @@
   --border-strong: #2a2a2a;
   --accent-gold: #c9a96e;
 }
+html.light-mode, html.light-mode body { background: var(--bg) !important; min-height: 100%; }
 body.light-mode {
   --bg: #f4f5f7;
   --bg-card: #ffffff;
@@ -102,6 +103,11 @@ body.light-mode .btn-ghost { color: var(--text-secondary) !important; border-col
 
 /* Role badge */
 body.light-mode .role-badge { color: var(--text-primary) !important; }
+
+
+html.light-mode { background: var(--bg) !important; }
+html.light-mode body { background: var(--bg) !important; min-height: 100vh; }
+body.light-mode #main-app { min-height: 100vh; background: var(--bg) !important; }
 
 /* CATCH-ALL: any element with an inline dark hex background gets flipped to a light card.
    Targets the dark hexes we found in the audit. Goal: nothing stays dark in light mode. */
@@ -528,9 +534,6 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
     <div id="batch-body"></div>
   </div>
 </div>
-    <div class="report-body" id="report-body"></div>
-  </div>
-</div>
 
 <div class="toast" id="toast" style="display:none;"></div>
 
@@ -705,7 +708,9 @@ function batchSubmitterName(batch){
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-const fmt = n => "S$" + Number(n).toFixed(2);
+const fmt = n => "S$" + Number(n||0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Format raw number with thousands separator (no currency symbol)
+const fmtNum = n => Number(n||0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 
 
@@ -872,7 +877,7 @@ const CURRENCY_SYMBOL = {
 const SUPPORTED_CURRENCIES = ["HKD","SGD","USD","EUR","GBP","JPY","CNY","AUD","KRW","INR","IDR","MYR","THB","PHP","NZD","CAD","CHF","ZAR","MXN","BRL","PLN","SEK","DKK","NOK","HUF","CZK","BGN","RON","TRY","ILS","ISK"];
 function fmtCcy(amount, ccy){
   const sym = CURRENCY_SYMBOL[ccy] || (ccy + " ");
-  return sym + Number(amount||0).toFixed(2);
+  return sym + Number(amount||0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 // Fetch FX rate. Tries multiple free APIs in order so one being blocked/down
 // doesn't break reviews. All are free, no API key required.
@@ -1888,10 +1893,8 @@ function renderBatches() {
         <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.4;margin-bottom:4px;word-wrap:break-word;">${esc(g.submitter)}</div>
         <div style="font-size:12px;color:#aaa;margin-bottom:2px;">✈ ${esc(g.trip)}</div>
         <div style="font-size:11px;color:#888;margin-bottom:10px;">${g.items.length} expense${g.items.length!==1?"s":""}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-          <div style="font-size:18px;font-weight:700;color:#f0b429;">${fmtCcy(total, homeC)}</div>
-          <button class="btn-primary" style="background:#a78bfa;margin:0;font-size:11px;padding:8px 14px;flex-shrink:0;" onclick="openBatchBuilder('${esc(key)}')">📦 Create &amp; Send</button>
-        </div>
+        <div style="margin-top:6px;font-size:18px;font-weight:700;color:#f0b429;">${fmtCcy(total, homeC)}</div>
+        <button class="btn-primary" style="background:#a78bfa;margin-top:10px;font-size:12px;padding:10px 14px;width:100%;" onclick="openBatchBuilder('${esc(key)}')">📦 Create &amp; Send to Director</button>
       </div>`;
     });
   }
@@ -2830,8 +2833,9 @@ document.addEventListener("visibilitychange", () => { if(!document.hidden) maybe
 
 // ─── LIGHT/DARK MODE TOGGLE ────────────────────────────────────────────────
 function applyTheme(mode){
-  if(mode === "light") document.body.classList.add("light-mode");
-  else document.body.classList.remove("light-mode");
+  const els = [document.documentElement, document.body];
+  if(mode === "light") els.forEach(el => el.classList.add("light-mode"));
+  else els.forEach(el => el.classList.remove("light-mode"));
   try { localStorage.setItem("ta_theme", mode); } catch(e){}
 }
 function toggleLightMode(){
@@ -2893,4 +2897,3 @@ function injectInboxThumbnails(){
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                        
