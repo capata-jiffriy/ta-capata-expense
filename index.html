@@ -102,7 +102,7 @@ body.light-mode .signout-btn,
 body.light-mode .btn-ghost { color: var(--text-secondary) !important; border-color: var(--border) !important; background: var(--bg-card) !important; }
 
 /* Role badge */
-body.light-mode .role-badge { color: var(--text-primary) !important; }
+body.light-mode .role-badge { background: rgba(184,152,92,0.1) !important; color: #8a6a2e !important; border: 1px solid #d4b97a !important; }
 
 
 /* Light mode: ensure no dark margins remain — html/body fill full viewport,
@@ -1564,8 +1564,23 @@ function renderDetailInfo(e){
   </div>`;
 
   // Drive receipt link
-  if(e.driveUrl) html+=`<div style="margin-top:12px;"><a class="drive-link" href="${e.driveUrl}" target="_blank">📎 View Receipt on Google Drive</a></div>`;
-  else if(e.receipt) html+=`<div style="margin-top:14px;"><div class="lbl">Receipt (local)</div><img src="${e.receipt}" alt="receipt" style="width:100%;border-radius:10px;border:1px solid #1e1e1e;margin-top:8px;display:block;"></div>`;
+  if(e.driveUrl){
+    const thumbUrl = driveThumbnailUrl(e.driveUrl, 800);
+    html += `<div style="margin-top:16px;">
+      <div style="font-size:11px;color:var(--text-secondary,#888);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">Receipt</div>
+      <a href="${e.driveUrl}" target="_blank" style="display:block;border-radius:10px;overflow:hidden;border:1px solid var(--border,#222);background:var(--bg-input,#141414);">
+        <img src="${thumbUrl}" referrerpolicy="no-referrer" style="width:100%;display:block;max-height:600px;object-fit:contain;background:#fff;" onerror="this.style.display='none';this.parentNode.insertAdjacentHTML('afterbegin','<div style=\'padding:30px;text-align:center;color:#888;font-size:12px;\'>📎 View on Drive →</div>')">
+      </a>
+      <a href="${e.driveUrl}" target="_blank" style="font-size:11px;color:#3b82f6;display:inline-block;margin-top:6px;">📎 Open full receipt on Google Drive →</a>
+    </div>`;
+  } else if(e.receipt){
+    html += `<div style="margin-top:16px;">
+      <div style="font-size:11px;color:var(--text-secondary,#888);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">Receipt (local)</div>
+      <img src="${e.receipt}" alt="receipt" style="width:100%;border-radius:10px;border:1px solid var(--border,#222);display:block;background:#fff;">
+    </div>`;
+  } else {
+    html += `<div style="margin-top:16px;font-size:12px;color:var(--text-muted,#666);">No receipt attached</div>`;
+  }
 
   // ADMIN Step 1
   if(currentUser.role==="admin"&&e.status==="Submitted"){
@@ -2904,46 +2919,8 @@ function driveThumbnailUrl(webViewLink, size){
   return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w${size||320}`;
 }
 
-// After Inbox renders, walk each card and prepend a 64x64 receipt thumbnail
-// so admin/director can see receipt + claim side by side.
-function injectInboxThumbnails(){
-  if(currentScreen !== "inbox") return;
-  document.querySelectorAll("#inbox-list .exp-card").forEach((card) => {
-    if(card.dataset.thumbInjected) return;
-    card.dataset.thumbInjected = "1";
-    const ids = (card.getAttribute("onclick") || "").match(/(\d+)/);
-    if(!ids) return;
-    const expId = parseInt(ids[1], 10);
-    const e = expenses.find(x => x.id === expId);
-    if(!e) return;
-    const url = e.driveUrl ? driveThumbnailUrl(e.driveUrl, 200) : null;
-    const thumbHTML = url
-      ? `<img src="${url}" referrerpolicy="no-referrer" style="width:64px;height:64px;object-fit:cover;border-radius:6px;flex-shrink:0;background:var(--bg-input,#141414);" onerror="this.style.opacity='0.3'">`
-      : `<div style="width:64px;height:64px;background:var(--bg-input,#141414);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:#666;">📷</div>`;
-    card.style.display = "flex";
-    card.style.gap = "10px";
-    card.style.alignItems = "flex-start";
-    const wrap = document.createElement("div");
-    wrap.style.cssText = "flex:1;min-width:0;";
-    while(card.firstChild) wrap.appendChild(card.firstChild);
-    const thumbDiv = document.createElement("div");
-    thumbDiv.style.cssText = "flex-shrink:0;";
-    thumbDiv.innerHTML = thumbHTML;
-    card.appendChild(thumbDiv);
-    card.appendChild(wrap);
-  });
-}
+// (Inbox thumbnails removed — receipts now show inline in the Detail view instead, which the user prefers.)
 
-// Hook into renderInbox to fire injectInboxThumbnails after render
-(function(){
-  if(typeof renderInbox === "function"){
-    const original = renderInbox;
-    window.renderInbox = function(){
-      original.apply(this, arguments);
-      setTimeout(injectInboxThumbnails, 30);
-    };
-  }
-})();
 </script>
 </body>
 </html>
