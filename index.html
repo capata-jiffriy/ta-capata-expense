@@ -1021,8 +1021,15 @@ function handleGoogleUser(email, name, picture) {
           const info = await probe.json();
           const scopes = info.scope || "";
           console.log("[OAuth] Token introspection scope:", scopes);
-          if(!scopes.match(/\bhttps:\/\/www\.googleapis\.com\/auth\/drive\b/)){
-            showSyncBanner("⚠ Drive sync limited — your session has 'drive.file' scope only and won't see other users' submissions. Tap Sign Out, then Sign in again and grant the full Drive permission.");
+          // Reliable scope check: split into individual scope URLs and look for an EXACT match
+          // for the full Drive scope. (Previous regex had a word-boundary bug where drive.file
+          // could falsely match full drive.)
+          const scopeList = scopes.split(/\s+/);
+          const hasFullDrive = scopeList.includes("https://www.googleapis.com/auth/drive");
+          const hasFileScope = scopeList.includes("https://www.googleapis.com/auth/drive.file");
+          if(!hasFullDrive){
+            const detail = hasFileScope ? "(only drive.file scope)" : "(no Drive scope at all)";
+            showSyncBanner(`⚠ Drive sync limited ${detail} — won't see other users' submissions. Granted: ${scopes||"(none)"}. Tap "Sign out & retry" then grant FULL Drive permission on the consent screen.`);
           } else {
             hideSyncBanner();
           }
@@ -1039,13 +1046,32 @@ function showSyncBanner(msg){
   if(!bn){
     bn = document.createElement("div");
     bn.id = "sync-warning-banner";
-    bn.style.cssText = "background:#3a1010;border-bottom:2px solid #f87171;color:#fca5a5;padding:10px 16px;font-size:12px;line-height:1.5;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;";
-    bn.innerHTML = `<span style="flex:1;" id="sync-warning-msg"></span><button onclick="signOut()" style="background:#f87171;color:#000;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;">Sign out & retry</button>`;
+    bn.style.cssText = "background:#3a1010;border-bottom:2px solid #f87171;color:#fca5a5;padding:10px 16px;font-size:11px;line-height:1.5;display:flex;flex-direction:column;gap:8px;position:sticky;top:0;z-index:100;word-break:break-all;";
+    bn.innerHTML = `<div id="sync-warning-msg" style="white-space:pre-wrap;"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button onclick="signOut()" style="background:#f87171;color:#000;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;">Sign out &amp; retry</button>
+        <button onclick="forceFreshConsent()" style="background:#fbbf24;color:#000;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;">Try fresh consent</button>
+        <button onclick="showDiagnostics()" style="background:#1a3a6a;color:#5b9cf6;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;">📊 Diagnostics</button>
+      </div>`;
     const main = document.getElementById("main-app");
     if(main) main.insertBefore(bn, main.firstChild);
   }
   document.getElementById("sync-warning-msg").textContent = msg;
   bn.style.display = "flex";
+}
+
+// Force a completely fresh OAuth flow — revoke current token + clear local state + reload
+async function forceFreshConsent(){
+  try {
+    if(googleAccessToken && window.google){
+      // Revoke via Google's revocation endpoint (works server-side, not just client cache)
+      await fetch("https://oauth2.googleapis.com/revoke?token=" + encodeURIComponent(googleAccessToken), { method:"POST" });
+    }
+  } catch(e){ console.warn("Revoke failed:", e); }
+  googleAccessToken = null;
+  // Reload — next sign-in will be totally fresh
+  alert("Token revoked. Page will reload — sign in again and ALLOW the Drive permission when asked.");
+  location.reload();
 }
 function hideSyncBanner(){
   const bn = document.getElementById("sync-warning-banner");
