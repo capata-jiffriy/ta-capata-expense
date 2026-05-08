@@ -105,6 +105,12 @@ body.light-mode .btn-ghost { color: var(--text-secondary) !important; border-col
 body.light-mode .role-badge { color: var(--text-primary) !important; }
 
 
+/* Light mode: ensure no dark margins remain — html/body fill full viewport,
+   regardless of what max-width #main-app has */
+html.light-mode, html.light-mode > body, body.light-mode { background: #f4f5f7 !important; min-height: 100vh; min-width: 100%; }
+body.light-mode #main-app { background: #f4f5f7 !important; min-height: 100vh; }
+
+
 html.light-mode { background: var(--bg) !important; }
 html.light-mode body { background: var(--bg) !important; min-height: 100vh; }
 body.light-mode #main-app { min-height: 100vh; background: var(--bg) !important; }
@@ -2834,8 +2840,18 @@ document.addEventListener("visibilitychange", () => { if(!document.hidden) maybe
 // ─── LIGHT/DARK MODE TOGGLE ────────────────────────────────────────────────
 function applyTheme(mode){
   const els = [document.documentElement, document.body];
-  if(mode === "light") els.forEach(el => el.classList.add("light-mode"));
-  else els.forEach(el => el.classList.remove("light-mode"));
+  if(mode === "light"){
+    els.forEach(el => el.classList.add("light-mode"));
+    // Also set inline style on html/body — guaranteed to override anything
+    document.documentElement.style.background = "#f4f5f7";
+    document.body.style.background = "#f4f5f7";
+    document.documentElement.style.minHeight = "100vh";
+  } else {
+    els.forEach(el => el.classList.remove("light-mode"));
+    document.documentElement.style.background = "";
+    document.body.style.background = "";
+    document.documentElement.style.minHeight = "";
+  }
   try { localStorage.setItem("ta_theme", mode); } catch(e){}
 }
 function toggleLightMode(){
