@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#080808">
 <title>TA &amp; Capata Expense Prototype</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
 <!-- Google Identity Services — lightweight, no frameworks needed -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
@@ -286,9 +286,9 @@ body.light-mode .demo-banner { background: #fff7e0 !important; color: #5b3a00 !i
 body.light-mode #sync-warning-banner { background: #fde8e8 !important; color: #991b1b !important; border-color: #f0a0a0 !important; }
 
 
-html,body{height:100%;background:#080808;overscroll-behavior:none;-webkit-overflow-scrolling:touch;}
+html,body{height:100%;background:#080808;overscroll-behavior:none;-webkit-overflow-scrolling:touch;font-family:'Inter','Helvetica Neue','Helvetica',sans-serif;color:#e8e8e0;line-height:1.5;-webkit-font-smoothing:antialiased;}
 ::-webkit-scrollbar{display:none;}
-body{font-family:'DM Mono','Courier New',monospace;color:#e8e8e0;background:#080808;}
+body{font-family:'Inter','Helvetica Neue','Helvetica',sans-serif;color:#e8e8e0;background:#080808;}
 #app{max-width:430px;margin:0 auto;min-height:100dvh;background:#080808;}
 .safe-top{height:env(safe-area-inset-top,0px);background:#080808;}
 .safe-bot{height:env(safe-area-inset-bottom,0px);background:#0a0a0a;}
@@ -376,7 +376,7 @@ body{font-family:'DM Mono','Courier New',monospace;color:#e8e8e0;background:#080
 .lbl{font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#555;margin-bottom:6px;}
 .pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:3px 8px;font-size:10px;font-weight:600;margin-top:4px;white-space:nowrap;border:1px solid;}
 .pill-lg{padding:5px 12px;font-size:12px;}
-input:not([type="checkbox"]):not([type="radio"]),select,textarea{background:var(--bg-input,#141414);border:1px solid var(--border,#222);border-radius:8px;color:var(--text-primary,#e8e8e0);padding:12px 14px;width:100%;font-size:16px;font-family:'DM Mono','Courier New',monospace;outline:none;-webkit-appearance:none;appearance:none;box-sizing:border-box;display:block;}
+input:not([type="checkbox"]):not([type="radio"]),select,textarea{background:var(--bg-input,#141414);border:1px solid var(--border,#222);border-radius:8px;color:var(--text-primary,#e8e8e0);padding:12px 14px;width:100%;font-size:16px;font-family:'Inter','Helvetica Neue','Helvetica',sans-serif;outline:none;-webkit-appearance:none;appearance:none;box-sizing:border-box;display:block;}
 input[type="checkbox"],input[type="radio"]{width:18px;height:18px;margin:0;accent-color:#c9a96e;cursor:pointer;flex-shrink:0;-webkit-appearance:auto;appearance:auto;}
 input:focus,select:focus,textarea:focus{border-color:#c9a96e;}
 select option{background:#141414;}
@@ -452,6 +452,14 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
 .btn-save-drive{background:#0a5c2e;color:#34d399;border:1px solid #0f8a44;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'Sora',sans-serif;font-weight:700;cursor:pointer;}
 .btn-close-modal{background:#2a2a2a;color:#ccc;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit;cursor:pointer;}
 @media print{.no-print{display:none!important;}body{background:#fff;}.report-page{padding:0;}}
+
+/* === MODAL ACTION BUTTON POLISH ================================== */
+body.light-mode .report-page,
+body.light-mode #batch-modal .report-page { background: #fff !important; color: #1a1a1a !important; box-shadow: 0 10px 40px rgba(0,0,0,.15); border-radius: 12px; }
+body.light-mode .report-header { background: #fff !important; border-bottom: 1px solid #e5e7eb; padding: 18px 20px; }
+body.light-mode .report-title { color: #0f172a !important; font-weight: 700; letter-spacing: -0.01em; font-size: 18px; }
+body.light-mode .report-sub { color: #6b7280 !important; font-size: 11px; letter-spacing: 0.08em; font-weight: 600; }
+
 </style>
 </head>
 <body>
@@ -647,12 +655,9 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div><div class="report-title" id="batch-entity-title">Capata Pte Ltd</div><div class="report-sub">Expense Reimbursement Batch</div></div>
         <div class="report-btns no-print" style="margin-top:8px;">
-          <button class="btn-save-drive" id="batch-save-drive-btn" onclick="saveBatchToDrive()">💾 Save to Drive</button>
-          <button class="btn-save-drive" id="batch-pdf-btn" onclick="exportBatchPDFFull()" style="background:#16a34a;color:#fff;">📑 Export PDF + Receipts</button>
-          <button class="btn-save-drive" onclick="sendBatchForESignature()" style="background:#dc2626;color:#fff;" title="Open Adobe Acrobat Sign in a new tab">✍ Send for E-Signature</button>
-          <button class="btn-print" onclick="downloadBatchPDF()">📥 Quick PDF</button>
-          <button class="btn-print" onclick="window.print()">🖨 Print</button>
-          <button class="btn-close-modal" onclick="closeBatchModal()">✕</button>
+          <button id="batch-pdf-btn" onclick="exportBatchPDFFull()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">📑 Export &amp; Save (PDF + Receipts)</button>
+          <button onclick="sendBatchForESignature()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;" title="Send to Director via Adobe Sign">✍ Send for E-Signature</button>
+          <button onclick="closeBatchModal()" style="background:transparent;color:#666;border:1px solid #ccc;border-radius:8px;width:36px;height:36px;font-size:14px;cursor:pointer;font-family:inherit;">✕</button>
         </div>
       </div>
     </div>
