@@ -658,6 +658,7 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
         <div class="report-btns no-print" style="margin-top:8px;">
           <button class="btn-save-drive" id="batch-save-drive-btn" onclick="saveBatchToDrive()">💾 Save to Drive</button>
           <button class="btn-save-drive" id="batch-pdf-btn" onclick="exportBatchPDFFull()" style="background:#16a34a;color:#fff;">📑 Export PDF + Receipts</button>
+          <button class="btn-save-drive" onclick="sendBatchForESignature()" style="background:#dc2626;color:#fff;" title="Open Adobe Acrobat Sign in a new tab">✍ Send for E-Signature</button>
           <button class="btn-print" onclick="downloadBatchPDF()">📥 Quick PDF</button>
           <button class="btn-print" onclick="window.print()">🖨 Print</button>
           <button class="btn-close-modal" onclick="closeBatchModal()">✕</button>
@@ -944,51 +945,96 @@ function parseVendorFromText(text){
 // Run OCR on a base64 image and pre-fill form fields.
 async function runOCROnImage(base64DataUrl){
   const statusEl = document.getElementById("ocr-status");
-  if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Reading receipt…</span>`;
-  try {
-    const T = await loadTesseract();
-    if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Recognising text…</span>`;
-    const { data } = await T.recognize(base64DataUrl, "eng", {
-      logger: (m) => {
-        if(m.status === "recognizing text" && statusEl) {
-          statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Reading receipt… ${Math.round((m.progress||0)*100)}%</span>`;
-        }
-      }
-    });
-    const text = data?.text || "";
-    console.log("[OCR] Extracted text:", text.slice(0, 300));
+  if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Scanning receipt…</span>`;
 
-    // Parse fields
+  try {
+    // Use OCR.space API — free tier with public test key, much better than Tesseract for receipts.
+    // Upgrade path: register at https://ocr.space/ocrapi for your own free key (500 calls/day),
+    // and replace OCR_API_KEY below with your key.
+    const OCR_API_KEY = "K81877234388957";  // Public free key — limited rate. Replace with yours for production.
+
+    const formData = new FormData();
+    formData.append("base64Image", base64DataUrl);
+    formData.append("apikey", OCR_API_KEY);
+    formData.append("language", "eng");
+    formData.append("isTable", "true");        // helps with receipts
+    formData.append("OCREngine", "2");          // newer engine, better accuracy
+    formData.append("scale", "true");           // auto-scale low-res images
+    formData.append("detectOrientation", "true");
+
+    const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: formData });
+    if(!res.ok) throw new Error("OCR API HTTP " + res.status);
+    const data = await res.json();
+    if(data.IsErroredOnProcessing){
+      throw new Error(data.ErrorMessage?.[0] || data.ErrorMessage || "OCR processing error");
+    }
+    const text = data?.ParsedResults?.[0]?.ParsedText || "";
+    console.log("[OCR] Raw text:\n" + text.slice(0, 500));
+
+    if(!text){
+      if(statusEl) statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ No text recognized — please fill in manually.</span>`;
+      return;
+    }
+
+    // Parse fields from extracted text
     const amount = parseAmountFromText(text);
     const date   = parseDateFromText(text);
     const vendor = parseVendorFromText(text);
+    const ccy    = parseCurrencyFromText(text);
 
-    // Fill form fields if empty (don't override what user already typed)
+    // Pre-fill ONLY blank fields (don't overwrite user input)
     let filled = [];
+    if(vendor && !document.getElementById("f-title").value){
+      document.getElementById("f-title").value = vendor;
+      filled.push("vendor");
+    }
     if(amount && !document.getElementById("f-amount").value){
       document.getElementById("f-amount").value = amount.toFixed(2);
-      filled.push(`amount $${amount.toFixed(2)}`);
+      filled.push("amount");
     }
     if(date && /^\d{4}-\d{2}-\d{2}$/.test(date)){
       document.getElementById("f-date").value = date;
-      filled.push(`date ${date}`);
+      filled.push("date");
     }
-    if(vendor && !document.getElementById("f-title").value){
-      document.getElementById("f-title").value = vendor;
-      filled.push(`vendor "${vendor}"`);
+    if(ccy){
+      const sel = document.getElementById("f-currency");
+      if(sel && Array.from(sel.options).some(o => o.value === ccy)){
+        sel.value = ccy;
+        filled.push("currency " + ccy);
+      }
     }
 
-    if(statusEl) {
+    if(statusEl){
       if(filled.length){
-        statusEl.innerHTML = `<span style="color:#34d399;">✓ Auto-filled ${filled.join(", ")} — please verify before submitting</span>`;
+        statusEl.innerHTML = `<span style="color:#34d399;">✓ Auto-filled ${filled.join(", ")} — please verify</span>`;
       } else {
-        statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ Couldn't auto-extract from receipt — please fill in manually</span>`;
+        statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ Couldn't extract structured fields — please fill manually.</span>`;
       }
     }
   } catch(err){
     console.error("[OCR] failed:", err);
-    if(statusEl) statusEl.innerHTML = `<span style="color:#f87171;">OCR failed (${err.message||"unknown"}) — fill manually</span>`;
+    if(statusEl) statusEl.innerHTML = `<span style="color:#f87171;">OCR failed (${(err.message||"error").slice(0,60)}) — fill manually</span>`;
   }
+}
+
+// Detect a 3-letter currency code at start of an amount line (e.g., "USD 100.00", "HKD 1,234.56")
+function parseCurrencyFromText(text){
+  const codes = SUPPORTED_CURRENCIES;
+  for(const c of codes){
+    // Look for the code as a word followed by digits (and a few permissive patterns)
+    const re = new RegExp("\\b" + c + "\\b\\s*[\\$\\s]?[\\d.,]", "i");
+    if(re.test(text)) return c;
+  }
+  // Common symbol heuristics
+  if(/\bUS\$|\bUSD\b|\$\s*\d/.test(text)) return "USD";
+  if(/HK\$|\bHKD\b/.test(text)) return "HKD";
+  if(/S\$|\bSGD\b/.test(text)) return "SGD";
+  if(/\bGBP\b|£\s*\d/.test(text)) return "GBP";
+  if(/\bEUR\b|€\s*\d/.test(text)) return "EUR";
+  if(/\bJPY\b|¥\s*\d/.test(text)) return "JPY";
+  if(/\bMYR\b|RM\s*\d/.test(text)) return "MYR";
+  if(/\bTHB\b|฿\s*\d/.test(text)) return "THB";
+  return null;
 }
 
 // ─── CURRENCY ───────────────────────────────────────────────────────────────
@@ -3191,16 +3237,18 @@ async function exportBatchPDFFull(){
     doc.text(fmtCcy(total, homeC), pageW - margin, y, { align: "right" });
     y += 24;
 
-    // Signature blocks
-    if(y > pageH - 100){ doc.addPage(); y = margin; }
+    // Prepared-by line (no signature needed — Eva is the preparer, not a signatory)
+    if(y > pageH - 80){ doc.addPage(); y = margin; }
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100);
-    doc.text("Prepared by (Admin)", margin, y);
-    doc.text("Approved by (Director)", pageW / 2, y); y += 36;
-    doc.line(margin, y, margin + 180, y);
-    doc.line(pageW / 2, y, pageW / 2 + 180, y); y += 14;
+    doc.text(`Prepared by: ${b.createdByName || "Admin"} · ${b.createdAt || ""}`, margin, y);
+    y += 24;
+
+    // Director signature block — single, centered
+    doc.setFontSize(9); doc.setTextColor(100);
+    doc.text("Approved by Director", margin, y); y += 36;
+    doc.line(margin, y, margin + 220, y); y += 14;
     doc.setFontSize(8);
     doc.text("Signature & Date", margin, y);
-    doc.text("Signature & Date", pageW / 2, y);
     doc.setTextColor(0);
 
     // ─── RECEIPT PAGES — multiple per page with reference labels ───
@@ -3335,6 +3383,70 @@ async function exportBatchPDFFull(){
   }
 }
 
+
+
+// ─── ADOBE SIGN HAND-OFF ────────────────────────────────────────────────────
+// Opens Adobe Acrobat Sign in a new tab. The Eva flow:
+//   1. App copies the Drive PDF link to clipboard for easy pasting
+//   2. Eva uploads the PDF to Adobe Sign
+//   3. Eva enters the Director's email + sends for signature
+// Adobe handles the rest of the workflow (email, signing, audit trail).
+async function sendBatchForESignature(){
+  if(!currentBatchId){ showToast("No batch open.","err"); return; }
+  const b = getBatch(currentBatchId);
+  if(!b){ showToast("Batch not found.","err"); return; }
+
+  // If we have the Drive PDF link, copy it to clipboard
+  if(b.pdfDriveUrl){
+    try {
+      await navigator.clipboard.writeText(b.pdfDriveUrl);
+      showToast("📋 Drive PDF link copied to clipboard.", "info");
+    } catch(e){ /* clipboard may not be available */ }
+  } else {
+    showToast("⚠ Generate the PDF first (📑 Export PDF + Receipts), then send for e-signature.", "err");
+    return;
+  }
+
+  // Build a mailto fallback in case Eva prefers email
+  const subject = encodeURIComponent(`Expense Reimbursement Batch — ${batchSubmitterName(b)} — Batch #${b.id}`);
+  const body = encodeURIComponent(
+`Dear Director,
+
+Please find attached the expense reimbursement batch for your approval and e-signature:
+
+Submitter: ${batchSubmitterName(b)}
+Trip: ${b.tripLabel || "—"}
+Total: ${fmtCcy(batchTotal(b), batchHomeCcy(b))}
+Items: ${(b.expenseIds||[]).length}
+
+PDF (with embedded receipts): ${b.pdfDriveUrl}
+
+Approval requested via Adobe Acrobat Sign.
+
+— TA & Capata Expense Manager`
+  );
+
+  // Show a small modal asking Eva to choose: Adobe web or email
+  showSimpleModal(`
+    <div style="background:#fff;color:#1a1a1a;border-radius:12px;padding:20px;max-width:480px;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px;">Send for E-Signature</div>
+      <div style="font-size:12px;color:#4a5568;margin-bottom:16px;line-height:1.5;">
+        The PDF link has been copied to your clipboard. Choose how to send it for signing:
+      </div>
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:#4a5568;font-family:monospace;word-break:break-all;">
+        ${esc(b.pdfDriveUrl)}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <a href="https://acrobat.adobe.com/link/review?uri=${encodeURIComponent(b.pdfDriveUrl)}" target="_blank" onclick="closeSimpleModal()" style="background:#dc2626;color:#fff;text-decoration:none;text-align:center;padding:12px;border-radius:8px;font-weight:600;">📝 Open Adobe Acrobat Sign</a>
+        <a href="mailto:?subject=${subject}&body=${body}" onclick="closeSimpleModal()" style="background:#1a3a6a;color:#fff;text-decoration:none;text-align:center;padding:12px;border-radius:8px;font-weight:600;">✉ Email to Director</a>
+        <button onclick="closeSimpleModal()" style="background:#e5e7eb;color:#1a1a1a;border:none;padding:10px;border-radius:8px;font-weight:600;cursor:pointer;">Cancel</button>
+      </div>
+      <div style="font-size:11px;color:#6b7280;margin-top:14px;line-height:1.5;">
+        <strong>Adobe Sign flow:</strong> opens Adobe Acrobat in a new tab. Sign in with your Adobe ID, upload the PDF (open the Drive link first to download it), add the Director's email as recipient, and send for signature.
+      </div>
+    </div>
+  `);
+}
 </script>
 </body>
 </html>
