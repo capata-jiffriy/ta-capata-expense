@@ -2337,7 +2337,38 @@ async function fixSyncFilePermissions(){
   alert("Permissions update complete. Other users can now write to these files.");
 }
 
-// Pull the latest data from Drive (replaces in-memory expenses + batches)
+// Merge two arrays of expenses/batches by ID. For conflicts (same ID in both),
+// the version with the most recent history entry wins. Items only in local (not
+// yet pushed to remote) are KEPT — this prevents destructive overwrites that
+// previously wiped JC's mid-flight submissions.
+function mergeRecords(local, remote){
+  const merged = new Map();
+  // Helper: get a "modified at" date from history
+  const lastTouched = (rec) => {
+    if(rec.history && rec.history.length){
+      const lastAt = rec.history[rec.history.length-1].at || "";
+      return new Date(lastAt + "T00:00:00").getTime() || 0;
+    }
+    return 0;
+  };
+  // Seed with remote (Drive is generally authoritative)
+  remote.forEach(r => merged.set(r.id, r));
+  // Merge in local — for ID conflicts, keep whichever has a later history entry
+  local.forEach(l => {
+    const r = merged.get(l.id);
+    if(!r){
+      merged.set(l.id, l);  // local-only; preserve
+    } else {
+      // Conflict: pick the more recently touched version
+      if(lastTouched(l) > lastTouched(r)){
+        merged.set(l.id, l);
+      }
+    }
+  });
+  return Array.from(merged.values()).sort((a,b)=>(b.id||0)-(a.id||0));
+}
+
+// Pull from Drive and merge with local in-memory state
 async function syncFromDrive(){
   if(!googleAccessToken){ console.log("[Sync] No token, skipping"); return; }
   if(_syncing){ console.log("[Sync] Already syncing"); return; }
@@ -2349,31 +2380,39 @@ async function syncFromDrive(){
       driveFileIds.expenses = f.id;
       const remote = await readDriveJson(f.id);
       if(Array.isArray(remote)){
-        expenses = remote;
-        saveExpenses();   // update local cache too
-        console.log(`[Sync] Pulled ${remote.length} expenses from Drive`);
+        const before = expenses.length;
+        expenses = mergeRecords(expenses, remote);
+        saveExpenses();
+        console.log(`[Sync] Merged: local ${before} + remote ${remote.length} → ${expenses.length} expenses`);
+        // If merge produced more than remote had, push back so Drive catches up
+        if(expenses.length > remote.length){
+          console.log("[Sync] Local had unsynced items — pushing back to Drive");
+          await writeDriveJson("expenses", expenses);
+        }
       }
     } else {
-      // No file yet — create it with current data
       await writeDriveJson("expenses", expenses);
       console.log("[Sync] Created new expenses.json on Drive");
     }
-    // Batches
+    // Batches — same merge logic
     f = await findDriveFile(SYNC_FILE_NAMES.batches);
     if(f){
       driveFileIds.batches = f.id;
       const remote = await readDriveJson(f.id);
       if(Array.isArray(remote)){
-        batches = remote;
+        const before = batches.length;
+        batches = mergeRecords(batches, remote);
         saveBatches();
-        console.log(`[Sync] Pulled ${remote.length} batches from Drive`);
+        console.log(`[Sync] Merged: local ${before} + remote ${remote.length} → ${batches.length} batches`);
+        if(batches.length > remote.length){
+          await writeDriveJson("batches", batches);
+        }
       }
     } else {
       await writeDriveJson("batches", batches);
       console.log("[Sync] Created new batches.json on Drive");
     }
     setSyncBadge("ok");
-    // Re-render current screen so new data shows
     if(currentScreen) renderScreen(currentScreen);
   } catch(err){
     console.error("[Sync] Pull failed:", err);
@@ -2386,29 +2425,53 @@ async function syncFromDrive(){
 }
 
 // Push data to Drive (called after each save). Fire-and-forget; won't block the UI.
+// Push queue — coalesces rapid pushes and serializes them so concurrent
+// submissions never race against each other on Drive.
+const _pushQueue = { expenses: { pending: false, scheduled: null }, batches: { pending: false, scheduled: null } };
+
 async function pushToDrive(key){
   if(!googleAccessToken){
     showToast("⚠ Not signed in to Google — submission saved locally only. Sign in to sync.","err");
     return;
   }
+  // If a push is already in progress for this key, just mark another as scheduled
+  // — when current finishes it will see the schedule and push the latest state.
+  if(_pushQueue[key].pending){
+    _pushQueue[key].scheduled = true;
+    return;
+  }
+  _pushQueue[key].pending = true;
+  setSyncBadge("syncing");
   try {
-    const data = key === "expenses" ? expenses : batches;
-    await writeDriveJson(key, data);
-    console.log(`[Sync] Pushed ${key} to Drive (${(data||[]).length} items)`);
-    setSyncBadge("ok");
-  } catch(err){
-    const msg = String(err.message || err);
-    console.warn(`[Sync] Push ${key} failed:`, msg);
-    if(typeof logError === "function") logError("DrivePush", `${key}: ${msg}`);
-    setSyncBadge("err");
-    // Surface scope problem prominently so user knows why their data isn't syncing
-    if(msg.includes("403") || msg.toLowerCase().includes("insufficient")){
-      showToast("⚠ Drive sync failed: insufficient permission. Sign out and sign in again to grant full Drive access.","err");
-    } else if(msg.includes("401")){
-      showToast("⚠ Drive sync failed: token expired. Please sign in again.","err");
-    } else {
-      showToast(`⚠ Drive sync failed: ${msg.slice(0,80)}`,"err");
+    while(true){
+      _pushQueue[key].scheduled = false;
+      const data = key === "expenses" ? expenses : batches;
+      try {
+        await writeDriveJson(key, data);
+        console.log(`[Sync] Pushed ${key} to Drive (${(data||[]).length} items)`);
+      } catch(err){
+        const msg = String(err.message || err);
+        console.warn(`[Sync] Push ${key} failed:`, msg);
+        if(typeof logError === "function") logError("DrivePush", `${key}: ${msg}`);
+        setSyncBadge("err");
+        if(msg.includes("403") || msg.toLowerCase().includes("insufficient")){
+          showToast("⚠ Drive sync failed: insufficient permission. Sign out and sign in again to grant full Drive access.","err");
+        } else if(msg.includes("401")){
+          showToast("⚠ Drive sync failed: token expired. Please sign in again.","err");
+        } else {
+          showToast(`⚠ Drive sync failed: ${msg.slice(0,80)}`,"err");
+        }
+        // Don't retry on error — break out of loop
+        return;
+      }
+      // If another push was scheduled while we were running, loop and push again
+      // with the latest state. Otherwise we're done.
+      if(!_pushQueue[key].scheduled) break;
+      console.log(`[Sync] Coalesced push for ${key} — pushing latest state again`);
     }
+    setSyncBadge("ok");
+  } finally {
+    _pushQueue[key].pending = false;
   }
 }
 
@@ -2579,6 +2642,22 @@ function renderDiagnostics(report){
 
   screen.innerHTML = html;
 }
+
+
+// Auto-sync from Drive when user re-focuses this tab — so Eva sees JC's
+// submissions without having to manually tap 🔄.
+let _lastSyncAt = 0;
+const AUTO_SYNC_COOLDOWN_MS = 30 * 1000;  // don't auto-sync more than every 30s
+function maybeAutoSync(){
+  if(!googleAccessToken) return;
+  const now = Date.now();
+  if(now - _lastSyncAt < AUTO_SYNC_COOLDOWN_MS) return;
+  _lastSyncAt = now;
+  console.log("[Sync] Auto-pulling on focus (cooldown reset)");
+  syncFromDrive();
+}
+window.addEventListener("focus", maybeAutoSync);
+document.addEventListener("visibilitychange", () => { if(!document.hidden) maybeAutoSync(); });
 </script>
 </body>
 </html>
