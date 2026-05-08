@@ -189,6 +189,98 @@ html.light-mode { background: #f4f5f7 !important; min-height: 100%; }
 html.light-mode > body { background: #f4f5f7 !important; min-height: 100vh; }
 html.light-mode #main-app { background: #f4f5f7 !important; min-height: 100vh; }
 
+
+/* === LIGHT MODE VISUAL POLISH ===================================== */
+/* Boost text contrast — many places use inline color:#888/#aaa/#666 which are too light on white. 
+   Override common dim grays so all text reads cleanly on the new white background. */
+body.light-mode [style*="color:#888"],
+body.light-mode [style*="color: #888"],
+body.light-mode [style*="color:#999"],
+body.light-mode [style*="color: #999"],
+body.light-mode [style*="color:#aaa"],
+body.light-mode [style*="color: #aaa"],
+body.light-mode [style*="color:#bbb"],
+body.light-mode [style*="color: #bbb"] { color: #6b7280 !important; }
+
+body.light-mode [style*="color:#444"],
+body.light-mode [style*="color: #444"],
+body.light-mode [style*="color:#555"],
+body.light-mode [style*="color: #555"],
+body.light-mode [style*="color:#666"],
+body.light-mode [style*="color: #666"],
+body.light-mode [style*="color:#777"],
+body.light-mode [style*="color: #777"] { color: #4a5568 !important; }
+
+body.light-mode [style*="color:#fff"],
+body.light-mode [style*="color: #fff"],
+body.light-mode [style*="color:#e8e8e0"],
+body.light-mode [style*="color:#e0"] { color: #1a1a1a !important; }
+
+/* Make the page-title weighty so it reads as a real heading */
+body.light-mode .page-title { color: #0f172a !important; font-weight: 700; letter-spacing: -0.02em; }
+body.light-mode .sec-head { color: #6b7280 !important; font-weight: 700; }
+body.light-mode .lbl { color: #4a5568 !important; font-weight: 600; }
+body.light-mode .exp-title { color: #0f172a !important; font-weight: 600; }
+body.light-mode .stat-val { color: #0f172a !important; font-weight: 700; }
+
+/* Role badge — make it a clean, professional pill */
+body.light-mode .role-badge { 
+  background: #fef3e0 !important; 
+  color: #8a5a00 !important; 
+  border: 1px solid #f0d088 !important;
+  padding: 6px 12px !important;
+  font-weight: 600 !important;
+  border-radius: 999px !important;
+  letter-spacing: 0.02em !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 12px 20px 4px !important;
+}
+
+/* Drive bar text contrast */
+body.light-mode .drive-bar { color: #4a5568 !important; }
+body.light-mode .drive-bar .drive-dot-ok { background: #16a34a !important; }
+
+/* Top user pill */
+body.light-mode .user-pill { color: #0f172a !important; }
+
+/* Workflow strip — make pills more readable */
+body.light-mode .wf-step { 
+  background: #f9fafb !important; 
+  border-color: #e5e7eb !important; 
+  color: #4a5568 !important; 
+  font-weight: 500 !important;
+}
+body.light-mode .wf-arrow { background: #d1d5db !important; }
+
+/* Toast more readable on light bg */
+body.light-mode .toast { background: #1f2937 !important; color: #fff !important; }
+
+/* Status pills — better borders/colors in light mode */
+body.light-mode .pill { font-weight: 600 !important; box-shadow: 0 1px 2px rgba(0,0,0,.04) !important; }
+
+/* Bottom nav active state more pronounced */
+body.light-mode .nav-btn { color: #6b7280 !important; }
+body.light-mode .nav-btn.active { color: #b8985c !important; font-weight: 600; }
+
+/* Card/exp-card subtle hover */
+body.light-mode .exp-card,
+body.light-mode .action-btn { transition: box-shadow .15s, transform .1s; }
+body.light-mode .exp-card:hover,
+body.light-mode .action-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08) !important; transform: translateY(-1px); }
+
+/* Form inputs — clearer borders + focus state in light mode */
+body.light-mode input:not([type="checkbox"]):not([type="radio"]):focus,
+body.light-mode select:focus,
+body.light-mode textarea:focus { border-color: #b8985c !important; box-shadow: 0 0 0 3px rgba(184,152,92,0.15) !important; }
+
+/* Chip filters in claims */
+body.light-mode .chip { background: #f3f4f6 !important; border: 1px solid #e5e7eb !important; color: #4a5568 !important; }
+body.light-mode .chip.active { background: #b8985c !important; color: #fff !important; border-color: #b8985c !important; }
+
+/* === END LIGHT MODE POLISH ======================================= */
+
 /* Light-shadow cards already have a border */
 body.light-mode .demo-banner { background: #fff7e0 !important; color: #5b3a00 !important; border-color: #f0d088 !important; }
 body.light-mode #sync-warning-banner { background: #fde8e8 !important; color: #991b1b !important; border-color: #f0a0a0 !important; }
@@ -565,7 +657,8 @@ input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
         <div><div class="report-title" id="batch-entity-title">Capata Pte Ltd</div><div class="report-sub">Expense Reimbursement Batch</div></div>
         <div class="report-btns no-print" style="margin-top:8px;">
           <button class="btn-save-drive" id="batch-save-drive-btn" onclick="saveBatchToDrive()">💾 Save to Drive</button>
-          <button class="btn-print" onclick="downloadBatchPDF()">📥 Download PDF</button>
+          <button class="btn-save-drive" id="batch-pdf-btn" onclick="exportBatchPDFFull()" style="background:#16a34a;color:#fff;">📑 Export PDF + Receipts</button>
+          <button class="btn-print" onclick="downloadBatchPDF()">📥 Quick PDF</button>
           <button class="btn-print" onclick="window.print()">🖨 Print</button>
           <button class="btn-close-modal" onclick="closeBatchModal()">✕</button>
         </div>
@@ -2920,6 +3013,327 @@ function driveThumbnailUrl(webViewLink, size){
 }
 
 // (Inbox thumbnails removed — receipts now show inline in the Detail view instead, which the user prefers.)
+
+
+
+// ─── PDF EXPORT WITH EMBEDDED RECEIPTS ──────────────────────────────────────
+let _jsPDFLoading = null;
+function loadJsPDF(){
+  if(window.jspdf) return Promise.resolve(window.jspdf);
+  if(_jsPDFLoading) return _jsPDFLoading;
+  _jsPDFLoading = new Promise((resolve, reject) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    sc.onload = () => { console.log("[PDF] jsPDF loaded"); resolve(window.jspdf); };
+    sc.onerror = () => reject(new Error("jsPDF load failed"));
+    document.head.appendChild(sc);
+  });
+  return _jsPDFLoading;
+}
+
+// Fetch a Drive file by ID as a Blob (authenticated)
+async function fetchDriveFileBlob(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: "Bearer " + googleAccessToken }
+  });
+  if(!res.ok) throw new Error("Drive fetch failed: HTTP " + res.status);
+  return await res.blob();
+}
+
+// Convert a Blob to a base64 data URL
+function blobToDataURL(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Extract Drive file ID from a webViewLink
+function fileIdFromLink(webViewLink){
+  if(!webViewLink) return null;
+  const m = webViewLink.match(/\/file\/d\/([^\/]+)/);
+  return m ? m[1] : null;
+}
+
+// Build a comprehensive PDF for a batch:
+//   Page 1: cover sheet (header, totals, FX rates table, expense list)
+//   Pages 2..N: one page per receipt photo (full size)
+async function exportBatchPDFFull(){
+  if(!currentBatchId){ showToast("No batch open.","err"); return; }
+  const b = getBatch(currentBatchId);
+  if(!b){ showToast("Batch not found.","err"); return; }
+  const items = expensesInBatch(b);
+  const homeC = batchHomeCcy(b);
+  const total = items.reduce((s,e)=>s+homeAmt(e),0);
+  const submitterName = batchSubmitterName(b);
+  const submitterCo = (ROLE_MAP[b.submitterId] || {}).company;
+
+  // Assign reference numbers (R1, R2, ...) — these match cover-page table to receipt thumbnails
+  const itemsWithRef = items.map((e, i) => ({ ...e, _ref: "R" + (i + 1) }));
+
+  showToast("📄 Building PDF (this can take 30–60 sec)…","info");
+  const btn = document.getElementById("batch-pdf-btn");
+  if(btn){ btn.disabled = true; btn.textContent = "📄 Building PDF…"; }
+
+  try {
+    await loadJsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    const contentW = pageW - margin * 2;
+
+    const ENTITY_NAMES = {
+      "TA-HK": "TransAsia Private Capital Limited",
+      "TA-SG": "TransAsia Private Capital Singapore Pte Ltd",
+      "Capata": "Capata Pte Ltd"
+    };
+    const entityName = ENTITY_NAMES[submitterCo] || "Capata Pte Ltd";
+
+    // ─── COVER SHEET ───
+    let y = margin;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+    doc.text(entityName, margin, y); y += 22;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100);
+    doc.text("Expense Reimbursement Batch — Batch #" + b.id, margin, y); y += 24;
+
+    doc.setTextColor(0); doc.setFontSize(11);
+    const meta = [
+      ["Submitter", submitterName],
+      ["Email", b.submitterId],
+      ["Trip", b.tripLabel || "—"],
+      ["Created", b.createdAt || ""],
+      ["Created by", b.createdByName || ""],
+      ["Approver", b.approverName || ""],
+      ["Status", b.status],
+    ];
+    meta.forEach(([k, v]) => {
+      doc.setFont("helvetica", "bold"); doc.text(k + ":", margin, y);
+      doc.setFont("helvetica", "normal"); doc.text(String(v), margin + 110, y);
+      y += 16;
+    });
+
+    if(b.note){
+      y += 8;
+      doc.setFont("helvetica", "italic"); doc.setTextColor(80);
+      doc.text("Admin note: " + b.note, margin, y, { maxWidth: contentW });
+      y += 18;
+    }
+    if(b.approvalNote){
+      doc.setFont("helvetica", "italic"); doc.setTextColor(20, 100, 60);
+      doc.text("Director note: " + b.approvalNote, margin, y, { maxWidth: contentW });
+      doc.setTextColor(0); y += 18;
+    }
+
+    // Expenses table (with Ref# column)
+    y += 16;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+    doc.text("EXPENSES (" + items.length + ")", margin, y); y += 8;
+    doc.setLineWidth(0.5); doc.line(margin, y, pageW - margin, y); y += 14;
+
+    doc.setFontSize(9); doc.setFont("helvetica", "bold");
+    doc.text("Ref",      margin,        y);
+    doc.text("Date",     margin + 30,   y);
+    doc.text("Vendor",   margin + 90,   y);
+    doc.text("Category", margin + 240,  y);
+    doc.text("Amount",   pageW - margin - 130, y);
+    doc.text("Home Eq.", pageW - margin - 60,  y);
+    y += 12;
+    doc.line(margin, y, pageW - margin, y); y += 8;
+
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+    itemsWithRef.forEach((e) => {
+      if(y > pageH - 100){ doc.addPage(); y = margin; }
+      const ccy = e.currency || homeC;
+      doc.setFont("helvetica", "bold"); doc.text(e._ref, margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(e.date || "", margin + 30, y);
+      doc.text((e.title || "").slice(0, 30), margin + 90, y);
+      doc.text((e.category || "").slice(0, 20), margin + 240, y);
+      doc.text(fmtCcy(e.amount, ccy), pageW - margin - 130, y);
+      if(typeof e.homeAmount === "number"){
+        doc.text(fmtCcy(e.homeAmount, homeC), pageW - margin - 60, y);
+      }
+      y += 14;
+    });
+
+    // FX breakdown
+    const fxBreakdown = {};
+    itemsWithRef.forEach(e => {
+      const c = e.currency || homeC;
+      if(c !== homeC && e.exchangeRate){
+        if(!fxBreakdown[c]) fxBreakdown[c] = { rate: e.exchangeRate, date: e.rateDate, count: 0, originalTotal: 0, homeTotal: 0 };
+        fxBreakdown[c].count++;
+        fxBreakdown[c].originalTotal += e.amount;
+        fxBreakdown[c].homeTotal += (e.homeAmount || 0);
+      }
+    });
+    if(Object.keys(fxBreakdown).length){
+      y += 14;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+      doc.text("FX RATES APPLIED", margin, y); y += 12;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+      Object.entries(fxBreakdown).forEach(([c, info]) => {
+        doc.text(`${c}: ${info.count} item${info.count!==1?"s":""} · ${fmtCcy(info.originalTotal, c)} → ${fmtCcy(info.homeTotal, homeC)} @ ${info.rate.toFixed(4)} (${info.date || ""})`, margin, y);
+        y += 12;
+      });
+    }
+
+    // Total
+    y += 16;
+    if(y > pageH - 60){ doc.addPage(); y = margin; }
+    doc.setLineWidth(1); doc.line(margin, y, pageW - margin, y); y += 14;
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("TOTAL REIMBURSABLE", margin, y);
+    doc.text(fmtCcy(total, homeC), pageW - margin, y, { align: "right" });
+    y += 24;
+
+    // Signature blocks
+    if(y > pageH - 100){ doc.addPage(); y = margin; }
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100);
+    doc.text("Prepared by (Admin)", margin, y);
+    doc.text("Approved by (Director)", pageW / 2, y); y += 36;
+    doc.line(margin, y, margin + 180, y);
+    doc.line(pageW / 2, y, pageW / 2 + 180, y); y += 14;
+    doc.setFontSize(8);
+    doc.text("Signature & Date", margin, y);
+    doc.text("Signature & Date", pageW / 2, y);
+    doc.setTextColor(0);
+
+    // ─── RECEIPT PAGES — multiple per page with reference labels ───
+    const receiptItems = itemsWithRef.filter(e => e.driveUrl);
+    if(receiptItems.length > 0){
+      showToast("📄 Embedding " + receiptItems.length + " receipts…","info");
+
+      // Layout: 2 receipts per A4 portrait page (stacked vertically).
+      // Each slot has a header band with reference + claim summary, then the receipt image fitted.
+      const RECEIPTS_PER_PAGE = 2;
+      const slotHeight = (pageH - margin * 2 - 40) / RECEIPTS_PER_PAGE;
+      const headerH = 30;
+      const imgH = slotHeight - headerH - 10;
+      const imgW = contentW;
+
+      let receiptCount = 0;
+      let posOnPage = 0;  // 0 = top half, 1 = bottom half
+
+      // Page header for the receipts section
+      doc.addPage();
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0);
+      doc.text("RECEIPTS — Batch #" + b.id, margin, margin);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100);
+      doc.text("Match each Ref# to the corresponding row in the EXPENSES table on the cover sheet.", margin, margin + 14);
+      doc.setTextColor(0);
+      let topOffset = margin + 30;
+
+      for(const e of receiptItems){
+        const fileId = fileIdFromLink(e.driveUrl);
+        if(!fileId) continue;
+
+        // Compute slot Y position
+        const slotY = topOffset + (posOnPage * slotHeight);
+
+        try {
+          const blob = await fetchDriveFileBlob(fileId);
+          const dataUrl = await blobToDataURL(blob);
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = dataUrl;
+          });
+
+          // Slot header — large reference number + claim metadata
+          doc.setFillColor(245, 245, 245);
+          doc.rect(margin, slotY, contentW, headerH, "F");
+          doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(0);
+          doc.text(e._ref, margin + 10, slotY + 20);
+          doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+          doc.text((e.title || "Untitled").slice(0, 50), margin + 50, slotY + 14);
+          doc.setTextColor(80); doc.setFontSize(8);
+          doc.text(`${e.date || ""} · ${e.category || ""} · ${fmtCcy(e.amount, e.currency || homeC)}`, margin + 50, slotY + 25);
+          doc.setTextColor(0);
+
+          // Image — scale to fit slot (preserving aspect ratio)
+          const fmt = dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
+          let dW = img.width;
+          let dH = img.height;
+          const scale = Math.min(imgW / dW, imgH / dH);
+          dW *= scale; dH *= scale;
+          const dX = margin + (contentW - dW) / 2;
+          const dY = slotY + headerH + 5;
+          doc.addImage(dataUrl, fmt, dX, dY, dW, dH);
+
+          // Slot border
+          doc.setDrawColor(220);
+          doc.rect(margin, slotY, contentW, slotHeight - 5);
+          doc.setDrawColor(0);
+
+          receiptCount++;
+        } catch(err){
+          console.error("[PDF] Failed to embed receipt for " + e._ref + ":", err);
+          // Show error placeholder for this slot
+          doc.setFillColor(255, 240, 240);
+          doc.rect(margin, slotY, contentW, slotHeight - 5, "F");
+          doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(150, 0, 0);
+          doc.text(e._ref + " — failed to load receipt", margin + 10, slotY + 30);
+          doc.setTextColor(0);
+        }
+
+        posOnPage++;
+        if(posOnPage >= RECEIPTS_PER_PAGE && receiptItems.indexOf(e) < receiptItems.length - 1){
+          // Add new page for next receipts
+          doc.addPage();
+          doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0);
+          doc.text("RECEIPTS — Batch #" + b.id + " (continued)", margin, margin);
+          doc.setTextColor(0);
+          posOnPage = 0;
+        }
+      }
+    }
+
+    // Save and offer download
+    const fileName = `Batch_${b.id}_${submitterName.replace(/ /g, "")}_${(b.tripLabel||"NoTrip").replace(/[^a-zA-Z0-9]/g, "_").slice(0, 30)}.pdf`;
+    const blob = doc.output("blob");
+
+    // Trigger download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = fileName; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    showToast(`✅ PDF ready — ${items.length} expenses, ${receiptItems.length} receipts (2 per page).`);
+
+    // Save to Drive
+    if(googleAccessToken && GOOGLE_CONFIG.salaryReportsFolderId){
+      try {
+        const folderId = GOOGLE_CONFIG.salaryReportsFolderId || GOOGLE_CONFIG.driveFolderId;
+        const meta = { name: fileName, parents: [folderId], mimeType: "application/pdf" };
+        const form = new FormData();
+        form.append("metadata", new Blob([JSON.stringify(meta)], { type: "application/json" }));
+        form.append("file", blob);
+        const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=webViewLink", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + googleAccessToken },
+          body: form
+        });
+        if(res.ok){
+          const data = await res.json();
+          b.pdfDriveUrl = data.webViewLink;
+          saveBatches();
+          showToast("✅ Also archived to Drive · Salary Reports folder");
+        }
+      } catch(err){ console.warn("[PDF] Drive save failed:", err); }
+    }
+  } catch(err){
+    console.error("[PDF] Build failed:", err);
+    showToast("⚠ PDF build failed: " + (err.message || err).slice(0, 80), "err");
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = "📑 Export PDF + Receipts"; }
+  }
+}
 
 </script>
 </body>
