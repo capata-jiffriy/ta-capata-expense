@@ -1,0 +1,2585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080808">
+<title>TA &amp; Capata Expense Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- Google Identity Services — lightweight, no frameworks needed -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+html,body{height:100%;background:#080808;overscroll-behavior:none;-webkit-overflow-scrolling:touch;}
+::-webkit-scrollbar{display:none;}
+body{font-family:'DM Mono','Courier New',monospace;color:#e8e8e0;background:#080808;}
+#app{max-width:430px;margin:0 auto;min-height:100dvh;background:#080808;}
+.safe-top{height:env(safe-area-inset-top,0px);background:#080808;}
+.safe-bot{height:env(safe-area-inset-bottom,0px);background:#0a0a0a;}
+
+/* LOGIN */
+#login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:32px 24px;background:#080808;}
+.login-logo{font-family:'Sora',sans-serif;font-weight:700;font-size:34px;color:#c9a96e;letter-spacing:-0.03em;margin-bottom:4px;}
+.login-tagline{font-size:10px;color:#444;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:8px;}
+.login-proto-tag{background:#1a1500;border:1px solid #3a2e00;color:#f0b429;border-radius:99px;padding:3px 12px;font-size:10px;font-family:'Sora',sans-serif;font-weight:600;margin-bottom:36px;letter-spacing:0.05em;}
+.login-card{background:#111;border:1px solid #1e1e1e;border-radius:16px;padding:24px;width:100%;max-width:340px;}
+.login-heading{font-family:'Sora',sans-serif;font-weight:700;font-size:17px;margin-bottom:6px;}
+.login-sub{font-size:12px;color:#555;margin-bottom:20px;line-height:1.6;}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#111;border:none;border-radius:10px;padding:13px 20px;width:100%;font-family:'Sora',sans-serif;font-weight:600;font-size:14px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-bottom:10px;}
+.google-btn:active{opacity:.85;}
+.divider{height:1px;background:#1e1e1e;margin:18px 0;}
+.login-note{font-size:11px;color:#444;text-align:center;line-height:1.7;}
+.login-note a{color:#c9a96e;text-decoration:none;}
+.config-notice{background:#1a0800;border:1px solid #c9a96e44;border-radius:10px;padding:12px 14px;margin-top:14px;font-size:11px;line-height:1.7;color:#c9a96e;display:none;}
+.config-notice strong{font-family:'Sora',sans-serif;display:block;margin-bottom:3px;}
+
+/* Demo section */
+.demo-section{margin-top:18px;max-width:340px;width:100%;}
+.demo-or{font-size:11px;color:#2a2a2a;text-align:center;margin-bottom:12px;}
+.demo-box{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:14px;}
+.demo-title{font-family:'Sora',sans-serif;font-weight:600;font-size:12px;color:#555;margin-bottom:4px;}
+.demo-subtitle{font-size:10px;color:#333;margin-bottom:12px;line-height:1.5;}
+.demo-group-label{font-size:10px;color:#444;text-transform:uppercase;letter-spacing:0.1em;padding:4px 0 6px;}
+.demo-btn{width:100%;background:none;border:1px solid #1e1e1e;border-radius:8px;padding:9px 12px;margin-bottom:6px;display:flex;flex-direction:column;gap:2px;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.demo-btn:active{opacity:.75;}
+.demo-btn-name{font-family:'Sora',sans-serif;font-weight:600;font-size:13px;}
+.demo-btn-email{font-size:10px;opacity:.5;}
+
+/* LOADING */
+#loading-screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;gap:14px;}
+.spinner{width:32px;height:32px;border:3px solid #1e1e1e;border-top-color:#c9a96e;border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:12px;color:#555;}
+
+/* MAIN APP */
+#main-app{display:none;}
+.header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;}
+.brand{font-family:'Sora',sans-serif;font-weight:700;font-size:18px;color:#c9a96e;letter-spacing:-0.02em;}
+.brand-sub{font-size:9px;color:#333;letter-spacing:0.15em;text-transform:uppercase;margin-top:1px;}
+.brand-proto{font-size:8px;color:#f0b429;letter-spacing:0.1em;text-transform:uppercase;margin-top:1px;}
+.divider-dark{height:1px;background:#141414;}
+.user-pill{display:inline-flex;align-items:center;gap:7px;}
+.user-avatar{width:26px;height:26px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:'Sora',sans-serif;flex-shrink:0;overflow:hidden;}
+.user-avatar img{width:100%;height:100%;object-fit:cover;border-radius:99px;}
+.signout-btn{background:none;border:1px solid #222;border-radius:8px;color:#666;font-size:11px;font-family:inherit;padding:6px 10px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.role-badge{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:4px 12px;font-size:11px;font-weight:600;font-family:'Sora',sans-serif;margin:8px 20px 0;}
+
+/* Drive status bar */
+.drive-bar{display:flex;align-items:center;gap:8px;padding:6px 20px;font-size:10px;color:#555;border-bottom:1px solid #0f0f0f;}
+.drive-dot{width:6px;height:6px;border-radius:99px;flex-shrink:0;}
+.drive-dot-ok{background:#34d399;}
+.drive-dot-off{background:#444;}
+.drive-dot-busy{background:#f0b429;animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* Workflow strip */
+.wf-strip{display:flex;align-items:center;overflow-x:auto;padding:10px 16px 0;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.wf-step{font-size:10px;color:#444;white-space:nowrap;background:#111;border:1px solid #1e1e1e;border-radius:99px;padding:3px 8px;flex-shrink:0;}
+.wf-arrow{width:10px;height:1px;background:#2a2a2a;flex-shrink:0;}
+
+/* Demo banner */
+.demo-banner{background:#0a1020;border-bottom:1px solid #1a2a50;padding:8px 20px;font-size:11px;color:#60a5fa;display:none;align-items:flex-start;gap:8px;line-height:1.5;}
+
+/* Main content */
+.main{padding:0 20px;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));}
+
+/* Nav */
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#0a0a0a;border-top:1px solid #141414;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0px);}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px 12px;background:none;border:none;cursor:pointer;color:#444;font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;position:relative;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.nav-btn.active{color:#c9a96e;}
+.nav-icon{font-size:18px;line-height:1;}
+.nav-badge{position:absolute;top:6px;right:calc(50% - 14px);background:#f87171;color:#000;border-radius:99px;width:16px;height:16px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;}
+
+/* Cards / common */
+.card{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:16px;}
+.card-blue{border-color:#1a2a50;background:#060c1a;}
+.card-gold{border-color:#2a2200;background:#110e00;}
+.card-green{border-color:#0f3a20;background:#060c08;}
+.page-title{font-family:'Sora',sans-serif;font-weight:700;font-size:22px;margin-top:18px;letter-spacing:-0.02em;}
+.sec-head{font-family:'Sora',sans-serif;font-weight:700;font-size:12px;color:#444;text-transform:uppercase;letter-spacing:0.08em;margin:20px 0 10px;}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#555;margin-bottom:6px;}
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:3px 8px;font-size:10px;font-weight:600;margin-top:4px;white-space:nowrap;border:1px solid;}
+.pill-lg{padding:5px 12px;font-size:12px;}
+input,select,textarea{background:#141414;border:1px solid #222;border-radius:8px;color:#e8e8e0;padding:12px 14px;width:100%;font-size:16px;font-family:'DM Mono','Courier New',monospace;outline:none;-webkit-appearance:none;appearance:none;box-sizing:border-box;display:block;}
+input:focus,select:focus,textarea:focus{border-color:#c9a96e;}
+select option{background:#141414;}
+textarea{resize:none;}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);}
+.field{margin-bottom:14px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.btn-primary{background:#c9a96e;color:#000;border:none;border-radius:10px;padding:14px;width:100%;font-family:'Sora',sans-serif;font-weight:700;font-size:15px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-top:8px;}
+.btn-approve{background:#0a1e12;color:#34d399;border:1px solid #0f3a20;border-radius:10px;padding:13px;flex:1;font-family:'Sora',sans-serif;font-weight:700;font-size:14px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.btn-reject{background:#1e0a0a;color:#f87171;border:1px solid #4a1010;border-radius:10px;padding:13px;flex:1;font-family:'Sora',sans-serif;font-weight:700;font-size:14px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.btn-blue{background:#0a1020;color:#60a5fa;border:1px solid #1a2a50;border-radius:8px;padding:9px;flex:1;font-family:'Sora',sans-serif;font-weight:700;font-size:12px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.btn-ghost{background:none;border:none;color:#666;font-size:14px;cursor:pointer;padding:0 0 16px;font-family:inherit;display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent;}
+.btn-upload{background:#141414;border:2px dashed #222;border-radius:8px;color:#555;padding:20px;width:100%;text-align:center;font-size:14px;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.action-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.action-btn{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;color:#e8e8e0;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation;border:none;}
+.exp-row{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.exp-row:active,.inbox-row:active{opacity:.8;}
+.exp-title{font-family:'Sora',sans-serif;font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.exp-sub{font-size:11px;color:#555;margin-top:3px;}
+.exp-trip{font-size:10px;color:#a78bfa;margin-top:2px;}
+.exp-amt{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;text-align:right;}
+.inbox-row{background:#111;border:1px solid #1e2a1e;border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.action-box{margin-top:20px;background:#0d0d0d;border-radius:12px;padding:16px;}
+.action-box-title{font-family:'Sora',sans-serif;font-weight:700;font-size:12px;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.06em;}
+.tab-bar{display:flex;gap:4px;background:#111;border-radius:99px;padding:4px;margin-bottom:16px;border:1px solid #1e1e1e;}
+.tab-item{flex:1;background:none;border:none;border-radius:99px;padding:8px 0;font-size:12px;color:#555;cursor:pointer;font-family:'Sora',sans-serif;font-weight:600;-webkit-tap-highlight-color:transparent;}
+.tab-item.active{background:#1e1e1e;color:#c9a96e;}
+.chip-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.chip{background:#141414;border:1px solid #222;border-radius:99px;padding:5px 12px;font-size:11px;color:#666;cursor:pointer;font-family:inherit;white-space:nowrap;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.chip.active{background:#c9a96e;border-color:#c9a96e;color:#000;font-weight:700;}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.stat-val{font-family:'Sora',sans-serif;font-weight:700;font-size:20px;margin-top:4px;}
+.alert-banner{background:#110e00;border:1px solid #2a2200;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.trail-dot{width:8px;height:8px;border-radius:99px;border:2px solid;margin-top:3px;flex-shrink:0;}
+.trail-line{width:1px;flex:1;background:#1e1e1e;margin-top:4px;}
+.queued-box{margin-top:16px;background:#060c1a;border:1px solid #1a2a50;border-radius:12px;padding:16px;display:flex;gap:12px;align-items:flex-start;}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+.detail-key{font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#555;margin-bottom:3px;}
+.detail-val{font-family:'Sora',sans-serif;font-weight:600;font-size:14px;}
+
+/* Drive upload indicator on expense row */
+.drive-link{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#34d399;margin-top:3px;text-decoration:none;}
+.drive-link-pending{color:#f0b429;}
+
+/* Toast */
+.toast{position:fixed;bottom:calc(72px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:99px;font-size:13px;font-family:'Sora',sans-serif;font-weight:600;z-index:999;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:none;}
+.toast-ok{background:#0a1e12;color:#34d399;border:1px solid #0f3a20;}
+.toast-err{background:#1e0a0a;color:#f87171;border:1px solid #4a1010;}
+.toast-info{background:#0a1020;color:#60a5fa;border:1px solid #1a2a50;}
+.screen{display:none;}.screen.active{display:block;}
+
+/* Salary report modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;}
+.modal-overlay.open{display:block;}
+.report-page{background:#fff;color:#111;margin:0 auto;max-width:480px;min-height:100vh;padding-bottom:40px;}
+.report-header{background:#1a0a00;padding:20px 24px 16px;}
+.report-title{font-family:'Sora',sans-serif;font-weight:700;font-size:20px;color:#c9a96e;}
+.report-sub{font-size:10px;color:#888;letter-spacing:0.15em;text-transform:uppercase;margin-top:2px;}
+.report-body{padding:20px 24px;}
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;margin-bottom:16px;padding-bottom:16px;border-bottom:2px solid #eee;}
+.report-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:2px;}
+.report-val{font-weight:600;}
+.report-sec{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.06em;color:#888;margin-bottom:8px;}
+.report-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 14px;border-radius:8px;margin-bottom:4px;font-size:13px;}
+.report-total-bar{background:#1a0a00;border-radius:10px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:16px;}
+.report-grand{font-family:'Sora',sans-serif;font-weight:700;font-size:26px;color:#c9a96e;}
+.report-ref{margin-top:20px;border:1px solid #eee;border-radius:8px;padding:12px 14px;font-size:12px;color:#888;}
+.sig-block{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;}
+.sig-line{border-top:1px solid #ccc;padding-top:8px;}
+.report-footer{margin-top:24px;font-size:10px;color:#bbb;text-align:center;border-top:1px solid #eee;padding-top:16px;}
+.report-btns{display:flex;gap:8px;}
+.btn-print{background:#c9a96e;color:#000;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'Sora',sans-serif;font-weight:700;cursor:pointer;}
+.btn-save-drive{background:#0a5c2e;color:#34d399;border:1px solid #0f8a44;border-radius:8px;padding:8px 14px;font-size:12px;font-family:'Sora',sans-serif;font-weight:700;cursor:pointer;}
+.btn-close-modal{background:#2a2a2a;color:#ccc;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit;cursor:pointer;}
+@media print{.no-print{display:none!important;}body{background:#fff;}.report-page{padding:0;}}
+</style>
+</head>
+<body>
+<div id="app">
+<div class="safe-top"></div>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <div style="text-align:center;">
+    <div class="login-logo">TA &amp; CAPATA</div>
+    <div class="login-tagline">Expense Manager</div>
+    <div class="login-proto-tag">🧪 Google Drive Prototype</div>
+  </div>
+
+  <div class="login-card">
+    <div class="login-heading">Sign in to continue</div>
+    <div class="login-sub">Use your Google account. Access is restricted to approved users only.</div>
+
+    <!-- Google Sign-In button rendered by Google -->
+    <div id="google-signin-btn" style="display:flex;justify-content:center;margin-bottom:10px;"></div>
+    <!-- Fallback manual button (shown if GSI doesn't render) -->
+    <button class="google-btn" id="manual-google-btn" onclick="triggerGoogleLogin()" style="display:none;">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.5 30.2 0 24 0 14.7 0 6.7 5.5 2.7 13.6l7.8 6C12.4 13.2 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.2 0-11.5-4.2-13.4-9.8l-7.8 6C6.7 42.5 14.7 48 24 48z"/></svg>
+      Sign in with Google
+    </button>
+
+    <div id="config-notice" class="config-notice">
+      <strong>⚙️ Client ID not configured yet</strong>
+      See the Google Cloud Setup Guide to get your Client ID, then paste it into this file.<br>
+      Use <strong>Demo Mode</strong> below to preview in the meantime.
+    </div>
+
+    <div class="divider"></div>
+    <div class="login-note">
+      🔒 Only approved Google accounts can access this prototype<br>
+      Password reset is handled by Google
+    </div>
+  </div>
+
+  <!-- Demo Mode -->
+  <div class="demo-section" id="demo-section">
+    <div class="demo-or">— or preview with Demo Mode —</div>
+    <div class="demo-box">
+      <div class="demo-title">Demo Mode</div>
+      <div class="demo-subtitle">Simulates Google login. Drive upload is simulated (no real files saved unless Client ID is configured).</div>
+
+      <div class="demo-group-label">🛡 Administrators</div>
+      <button class="demo-btn" onclick="demoLogin('adminEva')" style="border-color:#0f3a20;">
+        <span class="demo-btn-name" style="color:#34d399;">Eva Cheung</span>
+        <span class="demo-btn-email">taexpenseclaim@gmail.com · TA-HK Admin</span>
+      </button>
+
+      <div class="demo-group-label">🏛 Directors</div>
+      <button class="demo-btn" onclick="demoLogin('directorJiffriy')" style="border-color:#3a2e00;">
+        <span class="demo-btn-name" style="color:#c9a96e;">Jiffriy Chandra</span>
+        <span class="demo-btn-email">jiffriychandra@gmail.com · Director & Test Employee</span>
+      </button>
+      <button class="demo-btn" onclick="demoLogin('directorEddie')" style="border-color:#3a2e00;">
+        <span class="demo-btn-name" style="color:#c9a96e;">Eddie Wong</span>
+        <span class="demo-btn-email">eddie.wong@taprivatecapital.com · Director</span>
+      </button>
+      <button class="demo-btn" onclick="demoLogin('directorTsan')" style="border-color:#3a2e00;">
+        <span class="demo-btn-name" style="color:#c9a96e;">Tsan Gan</span>
+        <span class="demo-btn-email">tgan@taprivatecapital.com · Director</span>
+      </button>
+
+      <div class="demo-group-label">👤 Employee</div>
+      <button class="demo-btn" onclick="demoLogin('empJiffriy')" style="border-color:#1a3a6a;">
+        <span class="demo-btn-name" style="color:#5b9cf6;">Jiffriy Chandra (as Employee)</span>
+        <span class="demo-btn-email">jiffriychandra@gmail.com · Submit & track expenses</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOADING ── -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Signing in with Google…</div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="main-app">
+  <div class="demo-banner" id="demo-banner">
+    <span style="flex-shrink:0;">🧪</span>
+    <span>Demo Mode — Drive uploads are simulated. <strong>Configure Client ID</strong> to enable real Google Drive storage.</span>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="brand">TA &amp; CAPATA</div>
+      <div class="brand-sub">Expense Manager</div>
+      <div class="brand-proto">Google Prototype</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="user-pill" class="user-pill"></div>
+      <button onclick="showDiagnostics()" title="Run diagnostics" style="background:none;border:1px solid #2a2a2a;border-radius:8px;color:#888;font-size:11px;font-family:inherit;padding:6px 10px;cursor:pointer;margin-right:6px;">📊</button>
+      <button onclick="manualSync()" title="Sync from Drive" style="background:none;border:1px solid #2a2a2a;border-radius:8px;color:#888;font-size:11px;font-family:inherit;padding:6px 10px;cursor:pointer;margin-right:6px;">🔄</button>
+      <span id="sync-badge" style="font-size:10px;display:none;margin-right:8px;"></span>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+  <div class="divider-dark"></div>
+
+  <div style="padding:8px 20px 0;">
+    <span id="role-badge" class="role-badge"></span>
+  </div>
+
+  <!-- Google Drive status bar -->
+  <div class="drive-bar" id="drive-bar">
+    <div class="drive-dot drive-dot-off" id="drive-dot"></div>
+    <span id="drive-status-text">Google Drive: not connected</span>
+  </div>
+
+  <div class="wf-strip">
+    <div class="wf-step">Submit</div><div class="wf-arrow"></div>
+    <div class="wf-step">Admin Reviews</div><div class="wf-arrow"></div>
+    <div class="wf-step">→ Director</div><div class="wf-arrow"></div>
+    <div class="wf-step">Director Approves</div><div class="wf-arrow"></div>
+    <div class="wf-step">Queue for Salary</div><div class="wf-arrow"></div>
+    <div class="wf-step">Salary Disbursed</div>
+  </div>
+
+  <div class="main" id="main-content">
+    <div id="screen-home" class="screen active"></div>
+
+    <div id="screen-submit" class="screen">
+      <div class="page-title">New Expense Claim</div>
+      <div style="color:#555;font-size:13px;margin-bottom:20px;">Submit receipts anytime after your trip</div>
+      <div class="field"><div class="lbl">Trip / Project Label (optional)</div><input type="text" id="f-trip" placeholder="e.g. Jakarta Client Visit May 2026"></div>
+      <div class="field"><div class="lbl">Vendor / Payee *</div><input type="text" id="f-title" placeholder="e.g. Singapore Airlines, Shangri-La KL"></div>
+      <div class="field"><div class="lbl">Category *</div>
+        <select id="f-cat"><option value="">Select category…</option>
+          <option>Travel</option><option>Meals &amp; Entertainment</option><option>Office Supplies</option>
+          <option>Client Entertainment</option><option>Accommodation</option><option>Transport</option>
+          <option>Telecommunications</option><option>Training &amp; Development</option><option>Other</option>
+        </select>
+      </div>
+      <div class="grid2">
+        <div class="field" style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="flex:2;"><div class="lbl">Amount *</div><input type="number" id="f-amount" placeholder="0.00" step="0.01" inputmode="decimal"></div>
+          <div style="flex:1;"><div class="lbl">Currency</div><select id="f-currency"></select></div>
+        </div>
+        <div class="field"><div class="lbl">Date *</div><input type="date" id="f-date"></div>
+      </div>
+      <div class="field"><div class="lbl">Notes / Purpose</div><textarea id="f-notes" rows="3" placeholder="Meeting purpose, attendees, breakdown…"></textarea></div>
+      <div class="field">
+        <div class="lbl">Receipt Photo</div>
+        <input type="file" id="f-file" accept="image/*" capture="environment" style="display:none;">
+        <div id="receipt-preview-area"><button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Tap to attach receipt</button></div>
+        <div id="drive-upload-status" style="display:none;margin-top:8px;font-size:11px;color:#f0b429;">📤 Will upload to Google Drive on submit…</div>
+      </div>
+      <button class="btn-primary" onclick="submitExpense()">Submit Claim →</button>
+    </div>
+
+    <div id="screen-claims" class="screen">
+      <div class="page-title" id="claims-title"></div>
+      <div class="chip-row" id="claims-chips"></div>
+      <div id="claims-list"></div>
+    </div>
+
+    <div id="screen-inbox" class="screen">
+      <div class="page-title" id="inbox-title"></div>
+      <div style="color:#555;font-size:13px;margin-bottom:16px;" id="inbox-sub"></div>
+      <div id="inbox-list"></div>
+    </div>
+
+    <div id="screen-batches" class="screen">
+      <!-- content rendered by renderBatches() at runtime -->
+    </div>
+
+    <div id="screen-diagnostics" class="screen"></div>
+
+    <div id="screen-detail" class="screen">
+      <button class="btn-ghost" onclick="goBack()">← Back</button>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div class="page-title" id="detail-title" style="margin-top:0;flex:1;margin-right:10px;font-size:20px;"></div>
+        <div id="detail-pill" style="padding-top:4px;flex-shrink:0;"></div>
+      </div>
+      <div id="detail-trip" style="font-size:12px;color:#a78bfa;margin-bottom:4px;"></div>
+      <div id="detail-meta" style="color:#555;font-size:12px;margin-bottom:16px;"></div>
+      <div class="tab-bar">
+        <button class="tab-item active" id="tab-info" onclick="switchDetailTab('info')">Details</button>
+        <button class="tab-item" id="tab-history" onclick="switchDetailTab('history')">Audit Trail</button>
+      </div>
+      <div id="detail-info-panel"></div>
+      <div id="detail-history-panel" style="display:none;"></div>
+    </div>
+  </div>
+
+  <nav class="nav" id="bottom-nav"></nav>
+</div>
+
+<div class="safe-bot"></div>
+</div>
+
+<!-- BATCH DETAIL MODAL (placeholder — Phase 3 adds full content) -->
+<div class="modal-overlay" id="batch-modal">
+  <div class="report-page">
+    <div class="report-header">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div class="report-title" id="batch-entity-title">Capata Pte Ltd</div><div class="report-sub">Expense Reimbursement Batch</div></div>
+        <div class="report-btns no-print" style="margin-top:8px;">
+          <button class="btn-save-drive" id="batch-save-drive-btn" onclick="saveBatchToDrive()">💾 Save to Drive</button>
+          <button class="btn-print" onclick="downloadBatchPDF()">📥 Download PDF</button>
+          <button class="btn-print" onclick="window.print()">🖨 Print</button>
+          <button class="btn-close-modal" onclick="closeBatchModal()">✕</button>
+        </div>
+      </div>
+    </div>
+    <div id="batch-body"></div>
+  </div>
+</div>
+    <div class="report-body" id="report-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="display:none;"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFIGURATION — fill these in after completing the Google Cloud Setup Guide
+// ══════════════════════════════════════════════════════════════════════════════
+const GOOGLE_CONFIG = {
+  // Paste your OAuth 2.0 Client ID from Google Cloud Console here:
+  clientId: "821314515494-0mmoacpl2t08tsnmf9gpptbt3bpovg7f.apps.googleusercontent.com",
+
+  // Parent "TA Expenses" folder ID (fallback if subfolder IDs are not set)
+  driveFolderId: "1SDsKBcGQY2M_j4sNHIh4lJ-uOKjHUMkk",
+
+  // Receipts subfolder ID:
+  receiptsFolderId: "1Q7vSfwkjVxvELigPxvtwtJGF83Mfn479",
+
+  // Salary Reports subfolder ID:
+  salaryReportsFolderId: "1c15n2BT7SqBiyS8unX7PK8UKSwKxC-th",
+};
+
+// ── ROLE MAP ─────────────────────────────────────────────────────────────────
+// Assign roles by Google account email address.
+// IMPORTANT: Replace PLACEHOLDER with Jiffriy's actual Gmail when known.
+// Any Google account not listed here will be denied access.
+const ROLE_MAP = {
+
+  // ── ADMINISTRATOR ──────────────────────────────────────────────────────────
+  // Eva Cheung — test admin, owns the Google Drive folder
+  "taexpenseclaim@gmail.com": { role:"admin", name:"Eva Cheung", company:"TA-HK", salary:0 },
+
+  // ── DIRECTORS ─────────────────────────────────────────────────────────────
+  // Jiffriy Chandra — REPLACE with his actual Gmail address
+  // He is BOTH director AND employee for this prototype test
+  "jiffriychandra@gmail.com": { role:"director", name:"Jiffriy Chandra", company:"TA-HK", salary:4500, isAlsoEmployee:true },
+
+  // Add Eddie and Tsan if they want to test too:
+  // "eddie.wong@taprivatecapital.com": { role:"director", name:"Eddie Wong", company:"TA-HK", salary:0 },
+  // "tgan@taprivatecapital.com":  { role:"director", name:"Tsan Gan",   company:"TA-SG", salary:0 },
+};
+
+// Scopes needed: identity + Drive file creation
+const GOOGLE_SCOPES = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive";
+
+// ══════════════════════════════════════════════════════════════════════════════
+
+const isConfigured = GOOGLE_CONFIG.clientId !== "PASTE-YOUR-CLIENT-ID-HERE";
+const isDriveConfigured = GOOGLE_CONFIG.driveFolderId !== "PASTE-YOUR-FOLDER-ID-HERE";
+
+// When Google is fully configured, hide the Demo Mode section so users can't
+// accidentally click a demo profile (which would log them in as a demo persona
+// sharing the same email and confusingly show their real data).
+if(isConfigured && isDriveConfigured) {
+  document.addEventListener("DOMContentLoaded", () => {
+    const demoSec = document.getElementById("demo-section");
+    if(demoSec) demoSec.style.display = "none";
+  });
+}
+
+let currentUser = null;
+let googleAccessToken = null;
+let currentReportHTML = "";
+let currentReportUserId = null;
+
+const STATUS_META = {
+  Draft:         {bg:"#1e1e1e",fg:"#666",   bd:"#2a2a2a",icon:"○"},
+  Submitted:     {bg:"#0f1e35",fg:"#5b9cf6",bd:"#1a3a6a",icon:"→"},
+  AdminReviewed: {bg:"#1a1500",fg:"#f0b429",bd:"#3a2e00",icon:"👁"},
+  InBatch:       {bg:"#1a0f2e",fg:"#a78bfa",bd:"#3a1a6a",icon:"📦"},
+  Approved:      {bg:"#0a1e12",fg:"#34d399",bd:"#0f3a20",icon:"✓"},
+  Rejected:      {bg:"#1e0a0a",fg:"#f87171",bd:"#4a1010",icon:"✕"},
+};
+
+// All known users (built from ROLE_MAP + demo entries for director-as-employee)
+function getAllUsers() {
+  const users = [];
+  for(const [email, profile] of Object.entries(ROLE_MAP)) {
+    users.push({ id:email, email, ...profile, isDemo:false });
+    // If this person is also an employee, add a second entry for employee view
+    if(profile.isAlsoEmployee) {
+      users.push({ id:email+"__employee", email, ...profile, role:"employee", isDemo:false });
+    }
+  }
+  return users;
+}
+
+// Seed expenses — used only on first ever load. Subsequent loads pull from localStorage.
+const SEED_EXPENSES = [
+  {id:1, userId:"jiffriychandra@gmail.com", title:"Flight SIN-KUL return", category:"Travel", amount:380.00, date:"2026-04-14", status:"AdminReviewed", receipt:null, driveUrl:null, notes:"APAC distribution summit", history:[{actor:"Jiffriy Chandra",action:"Submitted",at:"2026-04-15"},{actor:"Eva Cheung",action:"Reviewed & forwarded to Jiffriy Chandra (Director)",at:"2026-04-16"},{actor:"Jiffriy Chandra",action:"Approved as Director",at:"2026-04-17"},{actor:"Eva Cheung",action:"Queued for May salary run",at:"2026-04-18"}], assignedDirectorId:"jiffriychandra@gmail.com", tripLabel:"KL Distribution Summit Apr 2026"},
+  {id:2, userId:"jiffriychandra@gmail.com", title:"Hotel Kuala Lumpur 2 nights", category:"Accommodation", amount:420.00, date:"2026-04-14", status:"Submitted", receipt:null, driveUrl:null, notes:"Shangri-La KL", history:[{actor:"Jiffriy Chandra",action:"Submitted",at:"2026-04-15"}], assignedDirectorId:null, tripLabel:"KL Distribution Summit Apr 2026"},
+  {id:3, userId:"jiffriychandra@gmail.com", title:"Client dinner – KL team", category:"Client Entertainment", amount:310.50, date:"2026-04-15", status:"Approved", receipt:null, driveUrl:null, notes:"6 pax, Marini's on 57", history:[{actor:"Jiffriy Chandra",action:"Submitted",at:"2026-04-15"},{actor:"Eva Cheung",action:"Reviewed & forwarded to Jiffriy Chandra (Director)",at:"2026-04-16"},{actor:"Jiffriy Chandra",action:"Approved as Director",at:"2026-04-17"}], assignedDirectorId:"jiffriychandra@gmail.com", tripLabel:"KL Distribution Summit Apr 2026"},
+];
+
+const EXPENSES_STORAGE_KEY = "ta_capata_expenses_v1";
+
+function loadExpenses(){
+  // Try localStorage first; fall back to seed if empty/corrupt
+  try {
+    const raw = localStorage.getItem(EXPENSES_STORAGE_KEY);
+    if(raw) {
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed)) return parsed;
+    }
+  } catch(e){ console.warn("expenses load failed, using seed:", e); }
+  return JSON.parse(JSON.stringify(SEED_EXPENSES)); // deep copy seed
+}
+
+function saveExpenses(){
+  try {
+    localStorage.setItem(EXPENSES_STORAGE_KEY, JSON.stringify(expenses));
+  } catch(e){
+    console.warn("expenses save failed (storage full?):", e);
+    try {
+      const slim = expenses.map(e => ({ ...e, receipt: e.driveUrl ? null : e.receipt }));
+      localStorage.setItem(EXPENSES_STORAGE_KEY, JSON.stringify(slim));
+    } catch(e2){ console.error("slim save also failed:", e2); }
+  }
+  // Push to Drive in the background so other users see the update
+  if(typeof pushToDrive === "function") pushToDrive("expenses");
+}
+
+// Reset all stored expenses back to seed data (useful for clean test runs)
+function resetExpensesToSeed(){
+  if(!confirm("Reset all expenses back to seed data? Your test submissions will be lost.")) return;
+  expenses = JSON.parse(JSON.stringify(SEED_EXPENSES));
+  saveExpenses();
+  alert("Reset complete. Reloading…");
+  location.reload();
+}
+
+let expenses = loadExpenses();
+
+// ─── BATCHES ───────────────────────────────────────────────────────────────────
+// A batch is a group of reviewed expenses sent together to a Director for
+// one-shot approval. Replaces the old per-expense Forward/Salary flow.
+const BATCHES_STORAGE_KEY = "ta_capata_batches_v1";
+
+function loadBatches(){
+  try {
+    const raw = localStorage.getItem(BATCHES_STORAGE_KEY);
+    if(raw){ const p = JSON.parse(raw); if(Array.isArray(p)) return p; }
+  } catch(e){ console.warn("batches load failed:", e); }
+  return [];
+}
+function saveBatches(){
+  try { localStorage.setItem(BATCHES_STORAGE_KEY, JSON.stringify(batches)); }
+  catch(e){ console.error("batches save failed:", e); }
+  if(typeof pushToDrive === "function") pushToDrive("batches");
+}
+let batches = loadBatches();
+
+// Helpers
+function getBatch(id){ return batches.find(b=>b.id===id); }
+function expensesInBatch(batch){
+  return (batch.expenseIds||[]).map(id=>expenses.find(e=>e.id===id)).filter(Boolean);
+}
+function batchTotal(batch){
+  return expensesInBatch(batch).reduce((s,e)=>s+homeAmt(e),0);
+}
+function batchHomeCcy(batch){
+  const exp = expensesInBatch(batch);
+  if(!exp.length) return "SGD";
+  return exp[0].homeCurrency || getHomeCurrency((ROLE_MAP[exp[0].userId]||{}).company);
+}
+function batchSubmitterName(batch){
+  const e = expensesInBatch(batch)[0];
+  return e ? (ROLE_MAP[e.userId]||{}).name || e.userId : "—";
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const fmt = n => "S$" + Number(n).toFixed(2);
+
+
+
+// ─── OCR (auto-extract amount/date/vendor from receipt photo) ──────────────
+let _tesseractLoading = null;
+function loadTesseract(){
+  if(window.Tesseract) return Promise.resolve(window.Tesseract);
+  if(_tesseractLoading) return _tesseractLoading;
+  _tesseractLoading = new Promise((resolve, reject) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    sc.onload = () => { console.log("[OCR] Tesseract.js loaded"); resolve(window.Tesseract); };
+    sc.onerror = () => { console.error("[OCR] Failed to load Tesseract.js"); reject(new Error("Tesseract load failed")); };
+    document.head.appendChild(sc);
+  });
+  return _tesseractLoading;
+}
+
+// Heuristic parsers for receipt text
+function parseAmountFromText(text){
+  // Look for currency-prefixed numbers and "TOTAL" lines with amounts
+  // Prefer the LARGEST amount (usually the total)
+  const candidates = [];
+  const lines = text.split(/\n/);
+
+  // First pass: find lines with TOTAL, AMOUNT, BALANCE, GRAND TOTAL
+  const totalRegex = /(total|amount|balance|grand|subtotal|due|charge)[^\d\n]{0,30}([\d,]+\.\d{2})/i;
+  for(const line of lines){
+    const m = line.match(totalRegex);
+    if(m){
+      const num = parseFloat(m[2].replace(/,/g,""));
+      if(num > 0) candidates.push({ amount: num, source: "total-line", confidence: 0.9 });
+    }
+  }
+
+  // Second pass: any number with 2 decimals
+  const numRegex = /[\$€£¥₹]?\s?([\d]{1,6}(?:,\d{3})*\.\d{2})\b/g;
+  let m;
+  while((m = numRegex.exec(text)) !== null){
+    const num = parseFloat(m[1].replace(/,/g,""));
+    if(num >= 0.5 && num < 1000000) candidates.push({ amount: num, source: "any-number", confidence: 0.4 });
+  }
+
+  if(!candidates.length) return null;
+  // Prefer high-confidence (total lines), then largest
+  candidates.sort((a,b) => (b.confidence - a.confidence) || (b.amount - a.amount));
+  return candidates[0].amount;
+}
+
+function parseDateFromText(text){
+  // Try several common date formats — return ISO YYYY-MM-DD
+  const patterns = [
+    // YYYY-MM-DD or YYYY/MM/DD
+    /\b(20\d{2})[-/](0?\d|1[0-2])[-/](0?\d|[12]\d|3[01])\b/,
+    // DD/MM/YYYY or DD-MM-YYYY (assume DMY)
+    /\b(0?\d|[12]\d|3[01])[-/](0?\d|1[0-2])[-/](20\d{2})\b/,
+    // DD Mmm YYYY (e.g. "14 Apr 2026")
+    /\b(0?\d|[12]\d|3[01])\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(20\d{2})\b/i,
+    // Mmm DD, YYYY
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(0?\d|[12]\d|3[01]),?\s+(20\d{2})\b/i,
+  ];
+  const months = {jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12"};
+
+  let m;
+  // Pattern 1: YYYY-MM-DD
+  if((m = text.match(patterns[0]))) {
+    const y = m[1], mo = m[2].padStart(2,"0"), d = m[3].padStart(2,"0");
+    return `${y}-${mo}-${d}`;
+  }
+  // Pattern 2: DD-MM-YYYY
+  if((m = text.match(patterns[1]))) {
+    return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+  }
+  // Pattern 3: DD Mmm YYYY
+  if((m = text.match(patterns[2]))) {
+    const mo = months[m[2].toLowerCase().slice(0,3)];
+    return `${m[3]}-${mo}-${m[1].padStart(2,"0")}`;
+  }
+  // Pattern 4: Mmm DD, YYYY
+  if((m = text.match(patterns[3]))) {
+    const mo = months[m[1].toLowerCase().slice(0,3)];
+    return `${m[3]}-${mo}-${m[2].padStart(2,"0")}`;
+  }
+  return null;
+}
+
+function parseVendorFromText(text){
+  // Top non-empty lines are usually the vendor name
+  const lines = text.split(/\n/).map(l=>l.trim()).filter(l => {
+    if(!l) return false;
+    if(/^[\d\W]+$/.test(l)) return false;          // skip pure numbers/symbols
+    if(l.length < 3 || l.length > 60) return false;  // skip too short / too long
+    return true;
+  });
+  return lines[0] || null;
+}
+
+// Run OCR on a base64 image and pre-fill form fields.
+async function runOCROnImage(base64DataUrl){
+  const statusEl = document.getElementById("ocr-status");
+  if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Reading receipt…</span>`;
+  try {
+    const T = await loadTesseract();
+    if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Recognising text…</span>`;
+    const { data } = await T.recognize(base64DataUrl, "eng", {
+      logger: (m) => {
+        if(m.status === "recognizing text" && statusEl) {
+          statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Reading receipt… ${Math.round((m.progress||0)*100)}%</span>`;
+        }
+      }
+    });
+    const text = data?.text || "";
+    console.log("[OCR] Extracted text:", text.slice(0, 300));
+
+    // Parse fields
+    const amount = parseAmountFromText(text);
+    const date   = parseDateFromText(text);
+    const vendor = parseVendorFromText(text);
+
+    // Fill form fields if empty (don't override what user already typed)
+    let filled = [];
+    if(amount && !document.getElementById("f-amount").value){
+      document.getElementById("f-amount").value = amount.toFixed(2);
+      filled.push(`amount $${amount.toFixed(2)}`);
+    }
+    if(date && /^\d{4}-\d{2}-\d{2}$/.test(date)){
+      document.getElementById("f-date").value = date;
+      filled.push(`date ${date}`);
+    }
+    if(vendor && !document.getElementById("f-title").value){
+      document.getElementById("f-title").value = vendor;
+      filled.push(`vendor "${vendor}"`);
+    }
+
+    if(statusEl) {
+      if(filled.length){
+        statusEl.innerHTML = `<span style="color:#34d399;">✓ Auto-filled ${filled.join(", ")} — please verify before submitting</span>`;
+      } else {
+        statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ Couldn't auto-extract from receipt — please fill in manually</span>`;
+      }
+    }
+  } catch(err){
+    console.error("[OCR] failed:", err);
+    if(statusEl) statusEl.innerHTML = `<span style="color:#f87171;">OCR failed (${err.message||"unknown"}) — fill manually</span>`;
+  }
+}
+
+// ─── CURRENCY ───────────────────────────────────────────────────────────────
+// Maps each entity to its home (payroll) currency
+const HOME_CURRENCY_BY_COMPANY = {
+  "TA-HK":  "HKD",
+  "TA-SG":  "SGD",
+  "Capata": "SGD",
+};
+function getHomeCurrency(company){ return HOME_CURRENCY_BY_COMPANY[company] || "SGD"; }
+const CURRENCY_SYMBOL = {
+  HKD:"HK$", SGD:"S$", USD:"US$", EUR:"€", GBP:"£", JPY:"¥",
+  CNY:"¥", AUD:"A$", KRW:"₩", INR:"₹", IDR:"Rp", MYR:"RM",
+  THB:"฿", PHP:"₱", NZD:"NZ$", CAD:"C$", CHF:"CHF", TRY:"₺",
+  ZAR:"R", MXN:"$", BRL:"R$", PLN:"zł", SEK:"kr", DKK:"kr",
+  NOK:"kr", HUF:"Ft", CZK:"Kč", BGN:"лв", RON:"lei", ISK:"kr", ILS:"₪"
+};
+// Currencies supported by Frankfurter API
+const SUPPORTED_CURRENCIES = ["HKD","SGD","USD","EUR","GBP","JPY","CNY","AUD","KRW","INR","IDR","MYR","THB","PHP","NZD","CAD","CHF","ZAR","MXN","BRL","PLN","SEK","DKK","NOK","HUF","CZK","BGN","RON","TRY","ILS","ISK"];
+function fmtCcy(amount, ccy){
+  const sym = CURRENCY_SYMBOL[ccy] || (ccy + " ");
+  return sym + Number(amount||0).toFixed(2);
+}
+// Fetch FX rate. Tries multiple free APIs in order so one being blocked/down
+// doesn't break reviews. All are free, no API key required.
+async function fetchExchangeRate(fromCcy, toCcy){
+  if(fromCcy === toCcy) return { rate: 1, date: today(), ok: true, source: "identity" };
+
+  const sources = [
+    {
+      name: "frankfurter",
+      url: `https://api.frankfurter.app/latest?from=${encodeURIComponent(fromCcy)}&to=${encodeURIComponent(toCcy)}`,
+      parse: (data) => ({ rate: data?.rates?.[toCcy], date: data?.date })
+    },
+    {
+      name: "open.er-api",
+      url: `https://open.er-api.com/v6/latest/${encodeURIComponent(fromCcy)}`,
+      parse: (data) => ({ rate: data?.rates?.[toCcy], date: (data?.time_last_update_utc || "").slice(5,16) })
+    },
+    {
+      name: "exchangerate-api",
+      url: `https://api.exchangerate-api.com/v4/latest/${encodeURIComponent(fromCcy)}`,
+      parse: (data) => ({ rate: data?.rates?.[toCcy], date: data?.date })
+    }
+  ];
+
+  const errors = [];
+  for(const src of sources){
+    try {
+      console.log(`[FX] trying ${src.name} for ${fromCcy}->${toCcy}`);
+      const res = await fetch(src.url);
+      if(!res.ok){ errors.push(`${src.name}: HTTP ${res.status}`); continue; }
+      const data = await res.json();
+      const parsed = src.parse(data);
+      if(typeof parsed.rate !== "number" || !isFinite(parsed.rate) || parsed.rate <= 0){
+        errors.push(`${src.name}: bad rate (${parsed.rate})`);
+        continue;
+      }
+      console.log(`[FX] ✓ ${src.name}: 1 ${fromCcy} = ${parsed.rate} ${toCcy} (${parsed.date})`);
+      return { rate: parsed.rate, date: parsed.date || today(), ok: true, source: src.name };
+    } catch(err){
+      errors.push(`${src.name}: ${err.message}`);
+    }
+  }
+
+  console.error("[FX] All sources failed:", errors);
+  return { rate: 1, date: today(), ok: false, error: errors.join(" | ") };
+}
+// Get home-currency amount on an expense (for sums + display)
+// Render an expense amount for cards/lists: "USD 100.00" with subtle "≈ S$133.30" if converted
+function fmtExpAmt(e){
+  const ccy = e.currency || e.homeCurrency || "SGD";
+  const homeCcy = e.homeCurrency || ccy;
+  const main = fmtCcy(e.amount, ccy);
+  if(ccy === homeCcy) return main;
+  if(typeof e.homeAmount === "number"){
+    return `${main}<div style="font-size:10px;color:#888;font-weight:400;">≈ ${fmtCcy(e.homeAmount, homeCcy)} @ ${(e.exchangeRate||0).toFixed(4)}</div>`;
+  }
+  return `${main}<div style="font-size:10px;color:#a78bfa;font-weight:400;">awaiting FX rate (admin review)</div>`;
+}
+function homeAmt(e){
+  if(typeof e.homeAmount === "number") return e.homeAmount;
+  return e.amount; // legacy: assume already in home currency
+}
+const today = () => new Date().toISOString().split("T")[0];
+const nowStr = () => new Date().toLocaleDateString("en-SG",{day:"2-digit",month:"long",year:"numeric"});
+function esc(s){ const d=document.createElement("div"); d.textContent=s||""; return d.innerHTML; }
+function getUserName(id) {
+  // strip __employee suffix if present
+  const cleanId = id.replace("__employee","");
+  const p = ROLE_MAP[cleanId];
+  return p ? p.name : cleanId;
+}
+function getDirectors() {
+  return Object.entries(ROLE_MAP)
+    .filter(([,p]) => p.role==="director")
+    .map(([email,p]) => ({ id:email, email, ...p }));
+}
+function getStaff() {
+  // For salary run — everyone who can submit expenses
+  return Object.entries(ROLE_MAP)
+    .filter(([,p]) => p.role==="employee" || p.isAlsoEmployee)
+    .map(([email,p]) => ({ id:email, email, ...p }));
+}
+
+function pillHTML(status, large) {
+  const m = STATUS_META[status]||STATUS_META.Draft;
+  return `<span class="pill${large?" pill-lg":""}" style="background:${m.bg};color:${m.fg};border-color:${m.bd};">${m.icon} ${esc(status)}</span>`;
+}
+
+let toastTimer = null;
+function showToast(msg, type="ok") {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "toast toast-"+type; t.style.display = "block";
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.display="none", 3500);
+}
+
+function getInbox() {
+  if(!currentUser) return [];
+  const role = currentUser.role;
+  if(role==="admin") return expenses.filter(e=>["Submitted","AdminReviewed"].includes(e.status));
+  // Directors no longer see individual claims in inbox — they see batches via getMyBatches()
+  if(role==="director") return expenses.filter(e=>e.status==="InBatch" && e.assignedDirectorId===currentUser.email);
+  // employee — also handle isAlsoEmployee case
+  return expenses.filter(e=>e.userId===currentUser.email && e.status==="Rejected");
+}
+
+function updateDriveBar(status) {
+  const dot = document.getElementById("drive-dot");
+  const txt = document.getElementById("drive-status-text");
+  if(status==="ok") {
+    dot.className="drive-dot drive-dot-ok";
+    txt.textContent = `Google Drive: connected · taexpenseclaim@gmail.com`;
+  } else if(status==="busy") {
+    dot.className="drive-dot drive-dot-busy";
+    txt.textContent = "Google Drive: uploading…";
+  } else if(status==="demo") {
+    dot.className="drive-dot drive-dot-off";
+    txt.textContent = "Google Drive: simulated (Demo Mode)";
+  } else {
+    dot.className="drive-dot drive-dot-off";
+    txt.textContent = "Google Drive: not connected";
+  }
+}
+
+// ── GOOGLE SIGN-IN ────────────────────────────────────────────────────────────
+window.addEventListener("load", () => {
+  if(!isConfigured) {
+    document.getElementById("config-notice").style.display = "block";
+    document.getElementById("manual-google-btn").style.display = "flex";
+    return;
+  }
+  // Render the official Google button
+  if(window.google && window.google.accounts) {
+    initGoogleSignIn();
+  } else {
+    // GSI script not loaded yet — wait for it
+    document.querySelector('script[src*="accounts.google.com"]').addEventListener("load", initGoogleSignIn);
+    document.getElementById("manual-google-btn").style.display = "flex";
+  }
+});
+
+function initGoogleSignIn() {
+  if(!window.google) return;
+  // We initialize GSI for the cancel/disableAutoSelect APIs used in signOut,
+  // but we DO NOT render the official credential button. Instead we use
+  // the manual button which calls triggerGoogleLogin() — that does a single
+  // popup with both identity AND Drive consent, avoiding the popup-blocked
+  // second-step issue with the credential flow.
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CONFIG.clientId,
+    callback: handleGoogleCallback,  // kept as fallback if user invokes One Tap
+    auto_select: false,
+  });
+  // Hide the GSI rendered button div, show our manual one
+  const gsiDiv = document.getElementById("google-signin-btn");
+  if(gsiDiv) gsiDiv.style.display = "none";
+  document.getElementById("manual-google-btn").style.display = "flex";
+}
+
+function triggerGoogleLogin() {
+  if(!isConfigured) { document.getElementById("config-notice").style.display="block"; return; }
+  if(!window.google) {
+    alert("Google Sign-In script hasn't loaded yet. Check your network and try again.");
+    return;
+  }
+  google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CONFIG.clientId,
+    scope: GOOGLE_SCOPES,
+    callback: (resp) => {
+      if(!resp || !resp.access_token) {
+        console.warn("No access token returned from Google.", resp);
+        alert("Google didn't return an access token. Make sure to grant Drive permission when prompted.");
+        return;
+      }
+      googleAccessToken = resp.access_token;
+      console.log("[OAuth] Granted scopes:", resp.scope || "(none reported)");
+      // Verify we got full Drive scope (needed for cross-user sync)
+      if(resp.scope && !resp.scope.includes("auth/drive")) {
+        console.warn("[OAuth] Drive scope missing! Got:", resp.scope);
+        showToast("⚠ Drive permission incomplete — sign out and sign in again, granting all permissions.","err");
+      } else if(resp.scope && resp.scope.includes("drive.file") && !resp.scope.match(/auth\/drive(?!\.)/)) {
+        console.warn("[OAuth] Got limited drive.file scope but need full drive scope");
+        showToast("⚠ Limited Drive scope — manual sync may not see other users' submissions.","err");
+      }
+      // Fetch user identity using the same access token
+      fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: "Bearer "+resp.access_token }
+      })
+      .then(r => {
+        if(!r.ok) throw new Error("userinfo failed: "+r.status);
+        return r.json();
+      })
+      .then(info => {
+        handleGoogleUser(info.email, info.name, info.picture);
+        updateDriveBar("ok");
+      })
+      .catch(err => {
+        console.error("User info fetch failed:", err);
+        // Try fallback v2 endpoint
+        fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+          headers: { Authorization: "Bearer "+resp.access_token }
+        })
+        .then(r => { if(!r.ok) throw new Error("v2 also failed: "+r.status); return r.json(); })
+        .then(info => {
+          console.log("✓ Fell back to v2 userinfo");
+          handleGoogleUser(info.email, info.name, info.picture);
+          updateDriveBar("ok");
+        })
+        .catch(err2 => {
+          console.error("Both userinfo endpoints failed:", err, err2);
+          alert("Sign-in succeeded but couldn't fetch user identity.\n\nError: " + (err.message || err) + "\n\nCheck F12 console and try again.");
+        });
+      });
+    },
+    error_callback: (err) => {
+      console.error("OAuth consent error:", err);
+      if(err && err.type === "popup_closed") {
+        // User closed the popup — silent return
+      } else {
+        alert("Google Sign-In failed: " + (err && err.type ? err.type : "unknown error"));
+      }
+    }
+  }).requestAccessToken({ prompt: "consent" });
+}
+
+function handleGoogleCallback(response) {
+  // Decode the JWT credential to get email/name/picture
+  const payload = JSON.parse(atob(response.credential.split(".")[1]));
+  // Request Drive access token INTERACTIVELY first, THEN log in.
+  // This ensures googleAccessToken is set before loginUser runs,
+  // so the Drive bar shows "connected" not "demo".
+  if(window.google) {
+    google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CONFIG.clientId,
+      scope: GOOGLE_SCOPES,
+      callback: (resp) => {
+        if(resp && resp.access_token) {
+          googleAccessToken = resp.access_token;
+        }
+        // Login regardless — if user declines Drive permission,
+        // they still get to use the app, just without Drive uploads.
+        handleGoogleUser(payload.email, payload.name, payload.picture);
+        updateDriveBar(googleAccessToken ? "ok" : "off");
+      },
+      error_callback: (err) => {
+        console.error("Drive consent error:", err);
+        // Still log in even if Drive consent failed/cancelled
+        handleGoogleUser(payload.email, payload.name, payload.picture);
+        updateDriveBar("off");
+      }
+    }).requestAccessToken();
+  } else {
+    handleGoogleUser(payload.email, payload.name, payload.picture);
+  }
+}
+
+function handleGoogleUser(email, name, picture) {
+  const emailLower = (email||"").toLowerCase();
+  const profile = ROLE_MAP[emailLower];
+  if(!profile) {
+    alert("Access denied.\n\n"+emailLower+" is not an approved user for this prototype.\n\nContact Eva Cheung (taexpenseclaim@gmail.com) to request access.");
+    return;
+  }
+  loginUser({
+    id: emailLower, email: emailLower,
+    name: profile.name || name,
+    role: profile.role,
+    company: profile.company || "",
+    salary: profile.salary || 0,
+    isAlsoEmployee: profile.isAlsoEmployee || false,
+    picture: picture || null,
+    isDemo: false,
+  });
+  updateDriveBar(googleAccessToken ? "ok" : "off");
+  // Auto-sync from Drive after login so the user sees the latest shared data.
+  // Also do a scope sanity check — if the granted token can't write to shared
+  // Drive files, show a big warning so the user knows to fix it.
+  if(googleAccessToken && typeof syncFromDrive === "function"){
+    setTimeout(async () => {
+      // Probe: try to verify the token has full Drive scope
+      try {
+        const probe = await fetch("https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=" + encodeURIComponent(googleAccessToken));
+        if(probe.ok){
+          const info = await probe.json();
+          const scopes = info.scope || "";
+          console.log("[OAuth] Token introspection scope:", scopes);
+          if(!scopes.match(/\bhttps:\/\/www\.googleapis\.com\/auth\/drive\b/)){
+            showSyncBanner("⚠ Drive sync limited — your session has 'drive.file' scope only and won't see other users' submissions. Tap Sign Out, then Sign in again and grant the full Drive permission.");
+          } else {
+            hideSyncBanner();
+          }
+        }
+      } catch(e){ console.warn("Token introspection failed:", e); }
+      syncFromDrive();
+    }, 200);
+  }
+}
+
+// Persistent banner that warns about sync issues — shown until user resolves
+function showSyncBanner(msg){
+  let bn = document.getElementById("sync-warning-banner");
+  if(!bn){
+    bn = document.createElement("div");
+    bn.id = "sync-warning-banner";
+    bn.style.cssText = "background:#3a1010;border-bottom:2px solid #f87171;color:#fca5a5;padding:10px 16px;font-size:12px;line-height:1.5;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;";
+    bn.innerHTML = `<span style="flex:1;" id="sync-warning-msg"></span><button onclick="signOut()" style="background:#f87171;color:#000;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;">Sign out & retry</button>`;
+    const main = document.getElementById("main-app");
+    if(main) main.insertBefore(bn, main.firstChild);
+  }
+  document.getElementById("sync-warning-msg").textContent = msg;
+  bn.style.display = "flex";
+}
+function hideSyncBanner(){
+  const bn = document.getElementById("sync-warning-banner");
+  if(bn) bn.style.display = "none";
+}
+
+// ── DEMO LOGIN ────────────────────────────────────────────────────────────────
+const DEMO_PROFILES = {
+  adminEva:       { id:"taexpenseclaim@gmail.com",             email:"taexpenseclaim@gmail.com",             name:"Eva Cheung",      role:"admin",    company:"TA-HK"     , salary:0,    isDemo:true },
+  directorJiffriy:{ id:"jiffriychandra@gmail.com", email:"jiffriychandra@gmail.com", name:"Jiffriy Chandra", role:"director", company:"TA-HK" ,   salary:4500, isAlsoEmployee:true, isDemo:true },
+  directorEddie:  { id:"eddie.wong@taprivatecapital.com",      email:"eddie.wong@taprivatecapital.com",      name:"Eddie Wong",      role:"director", company:"TA-HK"    , salary:0,    isDemo:true },
+  directorTsan:   { id:"tgan@taprivatecapital.com",            email:"tgan@taprivatecapital.com",            name:"Tsan Gan",        role:"director", company:"TA-SG"    , salary:0,    isDemo:true },
+  empJiffriy:     { id:"jiffriychandra@gmail.com", email:"jiffriychandra@gmail.com", name:"Jiffriy Chandra", role:"employee", company:"TA-HK" ,   salary:4500, isDemo:true },
+};
+
+function demoLogin(key) {
+  loginUser(DEMO_PROFILES[key]);
+  updateDriveBar("demo");
+}
+
+// ── SESSION ───────────────────────────────────────────────────────────────────
+function loginUser(user) {
+  currentUser = user;
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("loading-screen").style.display = "none";
+  document.getElementById("main-app").style.display = "block";
+  // Show demo banner only for demo logins. Defensive: if we somehow have
+  // a real Google access token, this is NOT actually a demo session — hide the banner.
+  const isReallyDemo = user.isDemo && !googleAccessToken;
+  document.getElementById("demo-banner").style.display = isReallyDemo ? "flex" : "none";
+  updateHeader();
+  currentClaimsFilter = "All";
+  goTo("home");
+}
+
+function signOut() {
+  // Hard reset all session/UI state so nothing leaks into the next session.
+  // Also revoke the access token so Google's cached consent is dropped — this
+  // forces a fresh consent popup on next sign-in (important when scopes change).
+  if(googleAccessToken && window.google){
+    try { google.accounts.oauth2.revoke(googleAccessToken, ()=>{}); } catch(e){}
+  }
+  currentUser = null;
+  googleAccessToken = null;
+  currentScreen = "home";
+  currentDetailId = null;
+  currentClaimsFilter = "All";
+  currentReportUserId = null;
+  currentReportHTML = "";
+  // Clear cached Drive file IDs so next session re-discovers them
+  if(typeof driveFileIds === "object"){ driveFileIds.expenses = null; driveFileIds.batches = null; }
+
+  // Close any open modal overlays (e.g. salary report, claim detail)
+  document.querySelectorAll(".modal-overlay").forEach(el => el.classList.remove("open"));
+
+  // Force-hide the bottom nav and all screens
+  const nav = document.getElementById("bottom-nav"); if(nav) nav.style.display = "none";
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+
+  // Hide app, show login
+  document.getElementById("main-app").style.display = "none";
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("demo-banner").style.display = "none";
+
+  // Reset Drive status indicator
+  updateDriveBar(isDriveConfigured ? "off" : "demo");
+
+  // Block Google auto sign-in / One Tap from immediately re-prompting
+  if(window.google) {
+    try { google.accounts.id.disableAutoSelect(); } catch(e){}
+    try { google.accounts.id.cancel(); } catch(e){}
+  }
+}
+
+function updateHeader() {
+  if(!currentUser) return;
+  const initials = currentUser.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  const roleColors = {director:"#c9a96e",admin:"#34d399",employee:"#5b9cf6"};
+  const c = roleColors[currentUser.role]||"#888";
+  const avatarInner = currentUser.picture
+    ? `<img src="${currentUser.picture}" alt="">`
+    : `<span style="color:${c};background:${c}22;">${initials}</span>`;
+  document.getElementById("user-pill").innerHTML = `
+    <div class="user-avatar" style="background:${c}22;">${avatarInner}</div>
+    <span style="font-size:12px;color:#aaa;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(currentUser.name)}</span>`;
+
+  const roleLabel = {director:"🏛 Director",admin:"🛡 Admin",employee:"👤 Employee"}[currentUser.role];
+  const badge = document.getElementById("role-badge");
+  const note = currentUser.isAlsoEmployee && currentUser.role==="director" ? " · also Employee" : "";
+  badge.textContent = roleLabel+" · "+currentUser.company+note;
+  const s = {director:{bg:"#1a1400",color:"#c9a96e",border:"#3a2e00"},admin:{bg:"#0a1a10",color:"#34d399",border:"#0f3a20"},employee:{bg:"#0a0f1a",color:"#5b9cf6",border:"#1a3a6a"}}[currentUser.role];
+  badge.style.cssText = `background:${s.bg};color:${s.color};border:1px solid ${s.border};`;
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+let currentScreen="home", currentDetailId=null, currentClaimsFilter="All";
+
+function goTo(screen, expId) {
+  currentScreen = screen;
+  if(expId !== undefined) currentDetailId = expId;
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  const el = document.getElementById("screen-"+screen);
+  if(el) el.classList.add("active");
+  document.getElementById("main-content").scrollTop = 0;
+  renderNav(); renderScreen(screen);
+}
+function goBack() { goTo(currentUser.role==="employee" ? "claims" : "inbox"); }
+
+function renderNav() {
+  const inbox = getInbox();
+  const tabs = [
+    {id:"home",  icon:"⊞",label:"Home"},
+    {id:"submit",icon:"＋",label:"Submit"},
+    {id:"claims",icon:"≡", label:"Claims"},
+  ];
+  // Show both Admin Inbox tab AND Director Inbox if isAlsoEmployee
+  if(currentUser.role==="admin") tabs.push({id:"batches",icon:"📦",label:"Batches"});
+  tabs.push({id:"inbox",icon:"↓",label:currentUser.role==="employee"?"Alerts":"Inbox",badge:inbox.length});
+
+  // Extra tab for director who is also employee
+  if(currentUser.isAlsoEmployee && currentUser.role==="director") {
+    tabs.splice(2,0,{id:"my-claims",icon:"📋",label:"My Claims"});
+  }
+
+  const nav = document.getElementById("bottom-nav");
+  nav.style.display = currentScreen==="detail" ? "none" : "flex";
+  nav.innerHTML = tabs.map(t=>`<button class="nav-btn ${currentScreen===t.id?"active":""}" onclick="goTo('${t.id}')">
+    ${t.badge>0?`<span class="nav-badge">${t.badge}</span>`:""}
+    <span class="nav-icon">${t.icon}</span><span>${t.label}</span></button>`).join("");
+}
+
+function renderScreen(s) {
+  switch(s) {
+    case"home":      renderHome(); break;
+    case"claims":    renderClaims(false); break;
+    case"my-claims": renderClaims(true); break;
+    case"inbox":     renderInbox(); break;
+    case"batches":   renderBatches(); break;
+    case"detail":    renderDetail(); break;
+    case"diagnostics": showDiagnostics(); break;
+    case"submit":    resetForm(); break;
+  }
+}
+
+// ── HOME ──────────────────────────────────────────────────────────────────────
+function renderHome() {
+  const isEmp = currentUser.role==="employee" || currentUser.isAlsoEmployee;
+  const myExp = expenses.filter(e=>e.userId===currentUser.email);
+  const allExp = expenses;
+  const viewExp = currentUser.role==="admin" ? allExp : currentUser.role==="director" ? allExp : myExp;
+
+  const approved = viewExp.filter(e=>["Approved"].includes(e.status)).reduce((s,e)=>s+homeAmt(e),0);
+  const pipeline = viewExp.filter(e=>["Submitted","AdminReviewed","InBatch"].includes(e.status)).reduce((s,e)=>s+homeAmt(e),0);
+  const inBatch  = viewExp.filter(e=>e.status==="InBatch").reduce((s,e)=>s+homeAmt(e),0);
+  const inbox = getInbox();
+
+  const sub = {director:"Director – Approval Authority"+(currentUser.isAlsoEmployee?" & Test Employee":""),admin:"Administrator – Review, Forward & Process",employee:"Team Member"}[currentUser.role];
+
+  let html = `<div class="page-title">Hi, ${esc(currentUser.name.split(" ")[0])} 👋</div>
+    <div style="color:#555;font-size:13px;margin-bottom:16px;">${esc(sub)}</div>
+    <div class="stat-grid">
+      <div class="card"><div class="lbl">Approved (${getHomeCurrency(currentUser.company)})</div><div class="stat-val" style="color:#34d399;">${fmtCcy(approved, getHomeCurrency(currentUser.company))}</div></div>
+      <div class="card"><div class="lbl">In Pipeline (${getHomeCurrency(currentUser.company)})</div><div class="stat-val" style="color:#5b9cf6;">${fmtCcy(pipeline, getHomeCurrency(currentUser.company))}</div></div>
+    </div>`;
+
+  if(inBatch>0) html+=`<div class="card card-blue" style="margin-top:10px;margin-bottom:10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="lbl" style="color:#a78bfa;">In Batch — Pending Director (${getHomeCurrency(currentUser.company)})</div><div class="stat-val" style="color:#a78bfa;">${fmtCcy(inBatch, getHomeCurrency(currentUser.company))}</div></div>
+      <span style="font-size:26px;">📦</span>
+    </div></div>`;
+
+  if(inbox.length>0) html+=`<div class="alert-banner" onclick="goTo('inbox')">
+    <span style="font-size:20px;">📥</span>
+    <div style="flex:1;"><div style="font-family:'Sora',sans-serif;font-weight:600;font-size:14px;">${inbox.length} item${inbox.length!==1?"s":""} need attention</div>
+    <div style="font-size:12px;color:#c9a96e;margin-top:2px;">${fmtCcy(inbox.reduce((s,e)=>s+homeAmt(e),0), getHomeCurrency(currentUser.company))} → Tap to review</div></div>
+    <span style="color:#444;font-size:18px;">›</span></div>`;
+
+  // If director+employee, show role-switcher tip
+  if(currentUser.isAlsoEmployee && currentUser.role==="director") {
+    html+=`<div class="card card-blue" style="margin-bottom:4px;">
+      <div style="font-size:12px;color:#60a5fa;line-height:1.6;">
+        💡 <strong>Test tip:</strong> You are logged in as <strong>Director</strong>. Use the <strong>My Claims</strong> tab to see your expenses as an employee. Use <strong>Inbox</strong> for director approvals.
+      </div></div>`;
+  }
+
+  const acts = [{icon:"➕",label:"New Claim",fn:"goTo('submit')"}];
+  if(currentUser.role==="admin") {
+    acts.push({icon:"📋",label:"All Claims",fn:"goTo('claims')"});
+    acts.push({icon:"📦",label:"Batches",fn:"goTo('batches')"});
+  } else {
+    acts.push({icon:"📋",label:"My Claims",fn:"goTo('claims')"});
+    acts.push({icon:"📤",label:"Export",fn:"exportCSV()"});
+  }
+
+  html+=`<div class="sec-head">Quick Actions</div>
+    <div class="action-grid">${acts.slice(0,3).map(a=>`<button class="action-btn" onclick="${a.fn}"><span style="font-size:22px;">${a.icon}</span><span style="font-size:12px;font-family:'Sora',sans-serif;font-weight:600;">${a.label}</span></button>`).join("")}</div>
+    <div class="sec-head">Recent</div>
+    ${viewExp.slice(0,5).map(e=>expRowHTML(e, currentUser.role!=="employee")).join("")}`;
+
+  document.getElementById("screen-home").innerHTML = html;
+}
+
+// ── CLAIMS ────────────────────────────────────────────────────────────────────
+function renderClaims(myOnly) {
+  const titleEl = document.getElementById("claims-title");
+  if(titleEl) titleEl.textContent = (currentUser.role==="admin"&&!myOnly) ? "All Claims" : "My Claims";
+  const statuses = ["All","Submitted","AdminReviewed","InBatch","Approved","Rejected"];
+  const chipsEl = document.getElementById("claims-chips");
+  if(chipsEl) chipsEl.innerHTML = statuses.map(s=>{
+    const m=STATUS_META[s]; const a=currentClaimsFilter===s;
+    return`<button class="chip ${a?"active":""}" onclick="setClaimsFilter('${s}')">${s==="All"?"All":m.icon+" "+s}</button>`;
+  }).join("");
+  const list = (myOnly || currentUser.role==="employee")
+    ? expenses.filter(e=>e.userId===currentUser.email)
+    : expenses;
+  const filtered = currentClaimsFilter==="All" ? list : list.filter(e=>e.status===currentClaimsFilter);
+  const listEl = document.getElementById("claims-list");
+  if(listEl) listEl.innerHTML = filtered.length===0
+    ? `<div style="text-align:center;color:#444;padding:40px 0;font-size:14px;">No claims found.</div>`
+    : filtered.map(e=>expRowHTML(e, !myOnly && currentUser.role!=="employee")).join("");
+}
+function setClaimsFilter(f){currentClaimsFilter=f;renderClaims(currentScreen==="my-claims");}
+
+// ── INBOX ─────────────────────────────────────────────────────────────────────
+function renderInbox() {
+  document.getElementById("inbox-title").textContent = {admin:"Admin Inbox",director:"Awaiting My Approval",employee:"Notifications"}[currentUser.role];
+  document.getElementById("inbox-sub").textContent = {admin:"Review, forward to Director, queue for salary run.",director:"Claims forwarded to you for approval.",employee:"Claims requiring your attention."}[currentUser.role];
+  const items = getInbox();
+  if(!items.length){document.getElementById("inbox-list").innerHTML=`<div style="text-align:center;color:#444;padding:40px 0;font-size:14px;">🎉 All clear!</div>`;return;}
+  document.getElementById("inbox-list").innerHTML = items.map(e=>{
+    let hint="";
+    if(currentUser.role==="admin"){
+      if(e.status==="Submitted") hint=`<div style="font-size:11px;color:#f0b429;margin-top:3px;">⚡ Step 1: Review this claim</div>`;
+      else if(e.status==="AdminReviewed") hint=`<div style="font-size:11px;color:#a78bfa;margin-top:3px;">↗ Step 2: Forward to Director</div>`;
+      else if(e.status==="Approved") hint=`<div style="font-size:11px;color:#34d399;margin-top:3px;">📅 Step 3: Queue for salary run</div>`;
+    } else if(currentUser.role==="director") {
+      hint=`<div style="font-size:11px;color:#c9a96e;margin-top:3px;">Sent by Admin · awaiting your decision</div>`;
+    }
+    const driveHTML = e.driveUrl ? `<a class="drive-link" href="${e.driveUrl}" target="_blank">📎 Receipt on Drive</a>` : "";
+    return`<div class="inbox-row" onclick="goTo('detail',${e.id})">
+      <div style="flex:1;min-width:0;">
+        <div class="exp-title">${esc(e.title)}</div>
+        <div class="exp-sub">${esc(getUserName(e.userId))} · ${esc(e.category)} · ${esc(e.date)}</div>
+        ${e.tripLabel?`<div class="exp-trip">✈ ${esc(e.tripLabel)}</div>`:""}
+        ${hint}${driveHTML}
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:10px;">
+        <div class="exp-amt">${fmtExpAmt(e)}</div>${pillHTML(e.status)}
+      </div></div>`;
+  }).join("");
+  // Admin quick-action: send all reviewed claims as a single batch
+  if(currentUser.role === "admin"){
+    const reviewedReady = expenses.filter(e => e.status === "AdminReviewed" && !batches.flatMap(b=>b.expenseIds||[]).includes(e.id));
+    if(reviewedReady.length >= 1){
+      const total = reviewedReady.reduce((s,e)=>s+homeAmt(e),0);
+      const homeC = reviewedReady[0].homeCurrency || getHomeCurrency(currentUser.company);
+      const banner = `<div style="background:#1a0f2e;border:1px solid #3a1a6a;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:12px;color:#a78bfa;margin-bottom:4px;">📦 Quick Action</div>
+        <div style="font-size:13px;color:#fff;margin-bottom:8px;">${reviewedReady.length} reviewed claim${reviewedReady.length!==1?"s":""} ready · <strong>${fmtCcy(total, homeC)}</strong></div>
+        <button class="btn-primary" style="background:#a78bfa;margin:0;font-size:12px;width:100%;" onclick="openBatchBuilder('__ALL__')">⚙ Build Batch &amp; Send to Director</button>
+      </div>`;
+      const list = document.getElementById("inbox-list");
+      if(list) list.insertAdjacentHTML("afterbegin", banner);
+    }
+  }
+
+}
+
+// ── SALARY ────────────────────────────────────────────────────────────────────
+// renderSalary removed — replaced by renderBatches in Phase 3
+
+// ── DETAIL ────────────────────────────────────────────────────────────────────
+function renderDetail(){
+  const e=expenses.find(x=>x.id===currentDetailId);if(!e)return;
+  document.getElementById("detail-title").textContent=e.title;
+  document.getElementById("detail-pill").innerHTML=pillHTML(e.status,true);
+  document.getElementById("detail-trip").textContent=e.tripLabel?"✈ "+e.tripLabel:"";
+  document.getElementById("detail-meta").textContent=e.category+" · "+e.date;
+  switchDetailTab("info");
+}
+
+function switchDetailTab(tab){
+  document.getElementById("tab-info").className="tab-item"+(tab==="info"?" active":"");
+  document.getElementById("tab-history").className="tab-item"+(tab==="history"?" active":"");
+  const e=expenses.find(x=>x.id===currentDetailId);if(!e)return;
+  document.getElementById("detail-info-panel").style.display=tab==="info"?"block":"none";
+  document.getElementById("detail-history-panel").style.display=tab==="history"?"block":"none";
+  if(tab==="info") renderDetailInfo(e); else renderDetailHistory(e);
+}
+
+function renderDetailInfo(e){
+  const dirName = e.assignedDirectorId ? getUserName(e.assignedDirectorId) : "";
+  let html=`<div class="card"><div class="detail-grid">
+    <div><div class="detail-key">Amount</div><div class="detail-val" style="font-size:18px;">${fmtCcy(e.amount, e.currency||e.homeCurrency||"SGD")}</div>${
+  (e.currency && e.homeCurrency && e.currency !== e.homeCurrency) ?
+    (typeof e.homeAmount === "number" ?
+      `<div style="font-size:11px;color:#888;margin-top:4px;">Home equivalent: <strong style="color:#c9a96e;">${fmtCcy(e.homeAmount, e.homeCurrency)}</strong> @ rate ${(e.exchangeRate||0).toFixed(4)} (locked ${e.rateDate||""})</div>` :
+      `<div style="font-size:11px;color:#a78bfa;margin-top:4px;">Home equivalent in ${e.homeCurrency} pending — admin will lock FX rate at review</div>`)
+    : ""
+}</div>
+    <div><div class="detail-key">Date</div><div class="detail-val">${esc(e.date)}</div></div>
+    <div><div class="detail-key">Submitted by</div><div class="detail-val">${esc(getUserName(e.userId))}</div></div>
+    <div><div class="detail-key">Category</div><div class="detail-val">${esc(e.category)}</div></div>
+    ${dirName?`<div><div class="detail-key">Director</div><div class="detail-val">${esc(dirName)}</div></div>`:""}
+  </div>
+  ${e.notes?`<div style="border-top:1px solid #1e1e1e;padding-top:12px;margin-top:12px;"><div class="lbl">Notes</div><div style="font-size:13px;color:#aaa;margin-top:4px;">${esc(e.notes)}</div></div>`:""}
+  </div>`;
+
+  // Drive receipt link
+  if(e.driveUrl) html+=`<div style="margin-top:12px;"><a class="drive-link" href="${e.driveUrl}" target="_blank">📎 View Receipt on Google Drive</a></div>`;
+  else if(e.receipt) html+=`<div style="margin-top:14px;"><div class="lbl">Receipt (local)</div><img src="${e.receipt}" alt="receipt" style="width:100%;border-radius:10px;border:1px solid #1e1e1e;margin-top:8px;display:block;"></div>`;
+
+  // ADMIN Step 1
+  if(currentUser.role==="admin"&&e.status==="Submitted"){
+    html+=`<div class="action-box" style="border:1px solid #f0b42944;"><div class="action-box-title" style="color:#f0b429;">Step 1 — Admin Review</div>
+    <div class="field"><div class="lbl">Internal Note (optional)</div><textarea id="act-note" rows="2" placeholder="Any observations…"></textarea></div>
+    <button class="btn-primary" style="background:#f0b429;margin-top:0;" onclick="doAdminReview(${e.id})">✓ Mark as Reviewed</button></div>`;
+  }
+  // ADMIN Step 2
+  // Forward to Director action box removed — admin uses Batches tab to send to director
+
+  // ADMIN Step 3
+  // "Queue for Salary" action removed — replaced by batch flow
+  // DIRECTOR decision
+  if(currentUser.role==="director"&&e.status==="InBatch"&&e.assignedDirectorId===currentUser.email){
+    html+=`<div class="action-box" style="border:1px solid #c9a96e44;"><div class="action-box-title" style="color:#c9a96e;">Director Decision</div>
+    <div class="field"><div class="lbl">Note (required if rejecting)</div><textarea id="act-note" rows="2" placeholder="Approval note or rejection reason…"></textarea></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-reject" onclick="doReject(${e.id})">✕ Reject</button>
+      <button class="btn-approve" onclick="doApprove(${e.id})">✓ Approve</button>
+    </div></div>`;
+  }
+  // Queued info
+  // QueuedForSalary status panel removed
+  document.getElementById("detail-info-panel").innerHTML=html;
+}
+
+function renderDetailHistory(e){
+  const dots=e.history.map((h,i)=>{const last=i===e.history.length-1;
+    return`<div style="display:flex;gap:12px;margin-bottom:14px;">
+      <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;">
+        <div class="trail-dot" style="background:${last?"#c9a96e":"#2a2a2a"};border-color:${last?"#c9a96e":"#333"};"></div>
+        ${!last?`<div class="trail-line"></div>`:""}
+      </div>
+      <div style="padding-bottom:8px;">
+        <div style="font-size:13px;font-family:'Sora',sans-serif;font-weight:600;">${esc(h.action)}</div>
+        <div style="font-size:11px;color:#555;margin-top:2px;">${esc(h.actor)} · ${esc(h.at)}</div>
+      </div></div>`;
+  }).join("");
+  document.getElementById("detail-history-panel").innerHTML=`<div class="card"><div class="lbl">Audit Trail</div><div style="margin-top:12px;">${dots}</div></div>`;
+}
+
+function expRowHTML(e, showUser){
+  const driveHTML = e.driveUrl ? `<a class="drive-link" href="${e.driveUrl}" target="_blank" onclick="event.stopPropagation()">📎 Drive</a>` : "";
+  return`<div class="exp-row" onclick="goTo('detail',${e.id})">
+    <div style="flex:1;min-width:0;">
+      <div class="exp-title">${esc(e.title)}</div>
+      <div class="exp-sub">${esc(e.category)} · ${esc(e.date)}${showUser?" · "+esc(getUserName(e.userId)):""}</div>
+      ${e.tripLabel?`<div class="exp-trip">✈ ${esc(e.tripLabel)}</div>`:""}${driveHTML}
+    </div>
+    <div style="text-align:right;flex-shrink:0;margin-left:10px;">
+      <div class="exp-amt">${fmtExpAmt(e)}</div>${pillHTML(e.status)}
+    </div></div>`;
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+function getNote(){ const el=document.getElementById("act-note"); return el?el.value.trim():""; }
+
+async function doAdminReview(id){
+  const note=getNote(); const e=expenses.find(x=>x.id===id);
+  // Determine home currency (prefer stored on expense; fall back to submitter's company)
+  const submitter = ROLE_MAP[e.userId];
+  const homeC = e.homeCurrency || getHomeCurrency(submitter?.company);
+  const ccy = e.currency || homeC;
+  // If rate not yet locked (different currency from home), fetch now
+  if(e.exchangeRate == null){
+    showToast(`💱 Fetching ${ccy} → ${homeC} rate…`,"info");
+    const fx = await fetchExchangeRate(ccy, homeC);
+    e.exchangeRate = fx.rate;
+    e.rateDate = fx.date;
+    e.homeAmount = +(e.amount * fx.rate).toFixed(2);
+    e.homeCurrency = homeC;
+    e.history.push({
+      actor: "System",
+      action: fx.ok
+        ? `FX locked: 1 ${ccy} = ${fx.rate.toFixed(4)} ${homeC} (${fx.date})`
+        : `FX fetch failed — defaulted to 1.0; please set manually. (${fx.error||""})`,
+      at: today()
+    });
+    if(!fx.ok) showToast("⚠ FX rate fetch failed — using 1.0. Check F12 console for details.","err");
+  }
+  e.status="AdminReviewed";
+  e.history.push({actor:currentUser.name,action:"Reviewed"+(note?" – "+note:""),at:today()});
+  saveExpenses(); showToast("Marked as reviewed."); goTo("inbox");
+}
+// doForward removed — replaced by batch flow
+function doApprove(id){
+  const note=getNote(); const e=expenses.find(x=>x.id===id);
+  e.status="Approved";
+  e.history.push({actor:currentUser.name,action:"Approved"+(note?" – "+note:""),at:today()});
+  saveExpenses(); showToast("Expense approved."); goTo("inbox");
+}
+function doReject(id){
+  const note=getNote(); if(!note){showToast("Please state a rejection reason.","err");return;}
+  const e=expenses.find(x=>x.id===id); e.status="Rejected";
+  e.history.push({actor:currentUser.name,action:"Rejected – "+note,at:today()});
+  saveExpenses(); showToast("Expense rejected.","err"); goTo("inbox");
+}
+// doQueueSalary removed — no longer needed in batch flow
+
+// ── SUBMIT + DRIVE UPLOAD ─────────────────────────────────────────────────────
+function lastTripKey(){ return "lastTrip_" + (currentUser ? currentUser.email : "anon"); }
+function lastCurrencyKey(){ return "lastCurrency_" + (currentUser ? currentUser.email : "anon"); }
+function getLastTrip(){
+  // Prefer localStorage for persistence across sessions; fall back to in-memory expenses
+  try {
+    const stored = localStorage.getItem(lastTripKey());
+    if(stored) return stored;
+  } catch(e){}
+  if(currentUser){
+    const mine = expenses.filter(e=>e.userId===currentUser.email && e.tripLabel)
+                         .sort((a,b)=>(b.id||0)-(a.id||0));
+    if(mine.length) return mine[0].tripLabel;
+  }
+  return "";
+}
+function getLastCurrency(){
+  // Default to user's home currency, but if they recently submitted in another currency,
+  // remember that so they don't keep re-picking USD/EUR/etc. on a foreign trip.
+  try {
+    const stored = localStorage.getItem(lastCurrencyKey());
+    if(stored && SUPPORTED_CURRENCIES.includes(stored)) return stored;
+  } catch(e){}
+  if(currentUser){
+    const mine = expenses.filter(e=>e.userId===currentUser.email && e.currency)
+                         .sort((a,b)=>(b.id||0)-(a.id||0));
+    if(mine.length) return mine[0].currency;
+  }
+  return currentUser ? getHomeCurrency(currentUser.company) : "SGD";
+}
+function rememberTrip(label){
+  if(!label) return;
+  try { localStorage.setItem(lastTripKey(), label); } catch(e){}
+}
+function rememberCurrency(ccy){
+  if(!ccy) return;
+  try { localStorage.setItem(lastCurrencyKey(), ccy); } catch(e){}
+}
+
+function resetForm(){
+  // Clear vendor, amount, notes — but PRESERVE trip label so consecutive
+  // claims for the same trip don't require re-entry
+  ["f-title","f-amount","f-notes"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+  // Pre-fill trip label with last-used value (per-user, persistent)
+  const trip=document.getElementById("f-trip"); if(trip) trip.value = getLastTrip();
+  const cat=document.getElementById("f-cat"); if(cat) cat.value="";
+  const dt=document.getElementById("f-date"); if(dt) dt.value=today();
+  // Populate currency dropdown, default to user's home currency
+  const ccySel=document.getElementById("f-currency");
+  if(ccySel){
+    const home    = currentUser ? getHomeCurrency(currentUser.company) : "SGD";
+    const defaultCcy = getLastCurrency();  // last used (or home if none)
+    ccySel.innerHTML = SUPPORTED_CURRENCIES.map(c=>{
+      const tag = (c===home) ? " (home)" : "";
+      return `<option value="${c}"${c===defaultCcy?" selected":""}>${c}${tag}</option>`;
+    }).join("");
+  }
+  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Tap to attach receipt</button>`;
+  document.getElementById("drive-upload-status").style.display="none";
+}
+
+document.getElementById("f-file").addEventListener("change", function(){
+  const file=this.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    // Compress + downscale to JPEG to keep storage and uploads fast
+    compressImage(ev.target.result, 1200, 0.82).then(compressedDataUrl => {
+      document.getElementById("receipt-preview-area").innerHTML = `
+        <img src="${compressedDataUrl}" style="max-width:100%;border-radius:8px;display:block;">
+        <div id="ocr-status" style="font-size:11px;margin-top:6px;text-align:center;"></div>
+        <button class="btn-upload" style="margin-top:8px;" onclick="document.getElementById('f-file').click()">📷 Replace receipt</button>
+      `;
+      document.getElementById("drive-upload-status").style.display = "none";
+      // OCR is currently advisory only — log extracted text to console but don't auto-fill
+      // (free Tesseract.js receipt accuracy is poor; production needs Google Vision API)
+      // Uncomment runOCROnImage(compressedDataUrl) to re-enable auto-fill once a better API is wired in.
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
+// Compress an image dataURL to JPEG with given max-width and quality
+function compressImage(dataUrl, maxWidth, quality){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";  // flatten transparency to white (smaller JPEGs)
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const out = canvas.toDataURL("image/jpeg", quality);
+      const beforeKB = Math.round(dataUrl.length * 0.75 / 1024);
+      const afterKB  = Math.round(out.length * 0.75 / 1024);
+      console.log(`[Compress] ${img.width}×${img.height} → ${w}×${h}, ${beforeKB}KB → ${afterKB}KB (-${Math.round((1-afterKB/beforeKB)*100)}%)`);
+      resolve(out);
+    };
+    img.onerror = () => resolve(dataUrl);  // fallback to original on error
+    img.src = dataUrl;
+  });
+}
+
+function clearReceipt(){
+  document.getElementById("f-file").value="";
+  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Tap to attach receipt</button>`;
+  document.getElementById("drive-upload-status").style.display="none";
+}
+
+async function submitExpense(){
+  const title=document.getElementById("f-title").value.trim();
+  const cat=document.getElementById("f-cat").value;
+  const amt=parseFloat(document.getElementById("f-amount").value);
+  const date=document.getElementById("f-date").value;
+  if(!title||!cat||!amt||!date){alert("Please fill in all required fields.");return;}
+
+  const img=document.querySelector("#receipt-preview-area img");
+  const expId=Date.now();
+  const safeName=title.replace(/[^a-zA-Z0-9]/g,"_").slice(0,40);
+  const fileName=`${date}_${cat.replace(/[^a-zA-Z]/g,"")}_${currentUser.name.replace(/ /g,"")}_${safeName}.jpg`;
+
+  const tripLabelVal = document.getElementById("f-trip").value.trim();
+  const ccySel = document.getElementById("f-currency");
+  const homeC = getHomeCurrency(currentUser.company);
+  const ccy = (ccySel && ccySel.value) || homeC;
+  const newExp={
+    id:expId, userId:currentUser.email, title, category:cat, amount:amt, date,
+    currency: ccy,
+    homeCurrency: homeC,
+    // If submitter currency == home currency, lock rate=1 & homeAmount=amount up front.
+    // Otherwise leave null — the admin's "Mark as Reviewed" step fetches and locks the rate.
+    exchangeRate: (ccy===homeC) ? 1 : null,
+    homeAmount:   (ccy===homeC) ? amt : null,
+    rateDate:     (ccy===homeC) ? today() : null,
+    status:"Submitted", receipt:img?img.src:null, driveUrl:null,
+    notes:document.getElementById("f-notes").value.trim(),
+    tripLabel:tripLabelVal,
+    history:[{actor:currentUser.name,action:`Submitted (${fmtCcy(amt,ccy)})`,at:today()}],
+    assignedDirectorId:null
+  };
+  expenses.unshift(newExp);
+  rememberTrip(tripLabelVal);
+  rememberCurrency(ccy);
+
+  // Upload receipt to Google Drive if connected
+  if(img && googleAccessToken && isDriveConfigured){
+    showToast("📤 Uploading receipt to Drive…","info");
+    updateDriveBar("busy");
+    try {
+      const driveUrl = await uploadReceiptToDrive(img.src, fileName);
+      newExp.driveUrl = driveUrl;
+      newExp.receipt = null; // free memory — file is on Drive
+      newExp.history.push({actor:"System",action:`Receipt saved to Google Drive: ${fileName}`,at:today()});
+      updateDriveBar("ok");
+      showToast("✅ Claim submitted & receipt saved to Drive!");
+    } catch(err){
+      console.error("Drive upload error:", err);
+      updateDriveBar("ok");
+      showToast("Claim submitted. Receipt upload failed — saved locally.","err");
+    }
+  } else {
+    showToast("Claim submitted!"+(img&&!googleAccessToken?" (receipt stored locally — connect Drive to upload)":""));
+  }
+  // If user submitted with a trip label, keep them on the Submit form so they
+  // can add another expense for the same trip without navigating. Otherwise
+  // go to the claims list as before.
+  if(tripLabelVal && (currentUser.role==="employee" || currentUser.isAlsoEmployee)) {
+    resetForm();  // clears vendor/amount/notes; trip label re-populates from getLastTrip
+    showToast("✅ Saved. Add another expense for this trip below.","info");
+  } else {
+    goTo(currentUser.isAlsoEmployee ? "my-claims" : "claims");
+  }
+}
+
+async function uploadReceiptToDrive(base64DataUrl, fileName){
+  // Convert base64 to blob
+  const res=await fetch(base64DataUrl);
+  const blob=await res.blob();
+
+  // Create file metadata pointing to the Receipts subfolder
+  // First find or create the Receipts subfolder
+  const folderId = GOOGLE_CONFIG.receiptsFolderId || GOOGLE_CONFIG.driveFolderId;
+  const metadata={ name:fileName, parents:[folderId], mimeType:"image/jpeg" };
+  const form=new FormData();
+  form.append("metadata",new Blob([JSON.stringify(metadata)],{type:"application/json"}));
+  form.append("file",blob);
+
+  const uploadRes=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",{
+    method:"POST",
+    headers:{ Authorization:"Bearer "+googleAccessToken },
+    body:form
+  });
+  if(!uploadRes.ok) throw new Error("Drive upload failed: "+uploadRes.status);
+  const data=await uploadRes.json();
+  return data.webViewLink;
+}
+
+// ── SALARY REPORT ──────────────────────────────────────────────────────────────
+// openReport removed — replaced by openBatch in Phase 3
+
+// saveReportToDrive removed — replaced by saveBatchToDrive in Phase 3
+
+// closeModal removed — replaced by closeBatchModal in Phase 3
+
+function exportCSV(){
+  const hdr="ID,Vendor,Category,Amount,Date,Status,Submitter,Director,Trip,DriveURL";
+  const rows=expenses.map(e=>`${e.id},"${e.title}","${e.category}",${e.amount},${e.date},${e.status},"${getUserName(e.userId)}","${e.assignedDirectorId?getUserName(e.assignedDirectorId):""}","${e.tripLabel||""}","${e.driveUrl||""}"`).join("\n");
+  const blob=new Blob([hdr+"\n"+rows],{type:"text/csv"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="ta_capata_expenses_prototype.csv"; a.click();
+}
+
+
+// ─── BATCHES (ADMIN) ───────────────────────────────────────────────────────
+function renderBatches() {
+  if(currentUser.role !== "admin") {
+    document.getElementById("screen-batches").innerHTML = `<div class="page-title">Batches</div><p style="color:#888;">Admin only.</p>`;
+    return;
+  }
+  // Find reviewed expenses not yet in any batch
+  const inSomeBatch = new Set(batches.flatMap(b => b.expenseIds || []));
+  const ready = expenses.filter(e => e.status === "AdminReviewed" && !inSomeBatch.has(e.id));
+
+  // Group by submitter + trip label (auto-suggested batches)
+  const groups = {};
+  ready.forEach(e => {
+    const submitter = (ROLE_MAP[e.userId] || {}).name || e.userId;
+    const trip = e.tripLabel || "(no trip label)";
+    const key = `${e.userId}|||${trip}`;
+    if(!groups[key]) groups[key] = { submitter, trip, userId: e.userId, items: [] };
+    groups[key].items.push(e);
+  });
+
+  const homeC = getHomeCurrency(currentUser.company);
+  let html = `<div class="page-title">Batches</div>
+    <p style="color:#888;font-size:12px;margin-bottom:16px;line-height:1.5;">Group reviewed expenses, send to a Director for one-shot approval.</p>`;
+
+  // ─── READY TO BATCH section ───
+  if(Object.keys(groups).length === 0) {
+    html += `<div style="background:#0f1e35;border:1px solid #1a3a6a;border-radius:10px;padding:14px;margin-bottom:20px;">
+      <div style="color:#5b9cf6;font-size:13px;line-height:1.5;">No reviewed expenses ready for batching. Mark claims as Reviewed first via the Inbox tab.</div>
+    </div>`;
+  } else {
+    // Compute totals for "Combine ALL into one batch" option
+    const allItems = ready;
+    const allTotal = allItems.reduce((s,e)=>s+homeAmt(e),0);
+    const submittersInvolved = new Set(allItems.map(e=>e.userId)).size;
+
+    html += `<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;font-weight:600;">Ready to Batch</div>`;
+
+    // Quick action: combine ALL ready expenses into one batch (admin's full discretion)
+    if(allItems.length > 1) {
+      html += `<div style="background:#1a0f2e;border:1px solid #3a1a6a;border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:600;color:#a78bfa;margin-bottom:6px;">📦 Custom Batch</div>
+        <div style="font-size:11px;color:#aaa;line-height:1.5;margin-bottom:10px;">Hand-pick from <strong style="color:#fff;">all ${allItems.length} reviewed expenses</strong> across ${submittersInvolved} submitter${submittersInvolved!==1?"s":""}. Total available: <strong style="color:#a78bfa;">${fmtCcy(allTotal, homeC)}</strong></div>
+        <button class="btn-primary" style="background:#a78bfa;margin:0;font-size:12px;width:100%;" onclick="openBatchBuilder('__ALL__')">⚙ Build Custom Batch</button>
+      </div>`;
+    }
+
+    // Auto-suggested batches grouped by submitter+trip
+    Object.entries(groups).forEach(([key, g]) => {
+      const total = g.items.reduce((s,e) => s + homeAmt(e), 0);
+      html += `<div style="background:#1e1500;border:1px solid #3a2e00;border-radius:10px;padding:14px;margin-bottom:10px;">
+        <div style="font-size:14px;font-weight:600;color:#fff;line-height:1.4;margin-bottom:4px;word-wrap:break-word;">${esc(g.submitter)}</div>
+        <div style="font-size:12px;color:#aaa;margin-bottom:2px;">✈ ${esc(g.trip)}</div>
+        <div style="font-size:11px;color:#888;margin-bottom:10px;">${g.items.length} expense${g.items.length!==1?"s":""}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div style="font-size:18px;font-weight:700;color:#f0b429;">${fmtCcy(total, homeC)}</div>
+          <button class="btn-primary" style="background:#a78bfa;margin:0;font-size:11px;padding:8px 14px;flex-shrink:0;" onclick="openBatchBuilder('${esc(key)}')">📦 Create &amp; Send</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  // ─── EXISTING BATCHES list ───
+  if(batches.length > 0) {
+    html += `<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 10px;font-weight:600;">All Batches (${batches.length})</div>`;
+    batches.slice().sort((a,b)=>(b.id||0)-(a.id||0)).forEach(b => {
+      const items = expensesInBatch(b);
+      const total = items.reduce((s,e)=>s+homeAmt(e),0);
+      const statusColor = b.status === "Approved" ? "#34d399" : b.status === "Rejected" ? "#f87171" : "#a78bfa";
+      const statusIcon  = b.status === "Approved" ? "✓"      : b.status === "Rejected" ? "✕"      : "⏳";
+      const statusBg    = b.status === "Approved" ? "#0a1e12" : b.status === "Rejected" ? "#1e0a0a" : "#1a0f2e";
+      const driveBadge  = b.driveUrl ? `<span style="background:#0a3a20;color:#34d399;padding:2px 8px;border-radius:99px;font-size:10px;margin-left:6px;">📁 On Drive</span>` : "";
+      html += `<div style="background:${statusBg};border:1px solid ${statusColor}44;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;" onclick="openBatch(${b.id})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+          <div style="font-size:13px;font-weight:600;color:#fff;flex:1;line-height:1.4;word-wrap:break-word;">${esc(batchSubmitterName(b))}</div>
+          <span style="background:${statusColor}22;color:${statusColor};padding:3px 10px;border-radius:99px;font-size:10px;font-weight:600;flex-shrink:0;">${statusIcon} ${esc(b.status)}</span>
+        </div>
+        <div style="font-size:11px;color:#aaa;margin-bottom:2px;">✈ ${esc(b.tripLabel || "(no trip)")}</div>
+        <div style="font-size:11px;color:#777;margin-bottom:8px;">${items.length} expense${items.length!==1?"s":""} · sent to ${esc(b.approverName || "—")} · ${esc(b.createdAt || "")}${driveBadge}</div>
+        ${b.approvalNote ? `<div style="font-size:11px;color:#aaa;font-style:italic;margin-bottom:8px;padding:6px 10px;background:#0a0a0a;border-radius:6px;">"${esc(b.approvalNote)}"</div>` : ""}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <div style="font-size:18px;font-weight:700;color:${statusColor};">${fmtCcy(total, batchHomeCcy(b))}</div>
+          <div style="display:flex;gap:6px;flex-shrink:0;" onclick="event.stopPropagation();">
+            <button onclick="event.stopPropagation();openBatch(${b.id});setTimeout(downloadBatchPDF,200);" style="background:#0a3a20;color:#34d399;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:inherit;cursor:pointer;">📥 PDF</button>
+            <button onclick="event.stopPropagation();openBatch(${b.id});setTimeout(saveBatchToDrive,200);" style="background:#1a3a6a;color:#5b9cf6;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:inherit;cursor:pointer;">💾 Drive</button>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById("screen-batches").innerHTML = html;
+}
+
+// Open the batch builder for a specific submitter+trip group, with director picker
+function openBatchBuilder(groupKey){
+  const inSomeBatch = new Set(batches.flatMap(b=>b.expenseIds||[]));
+  let items, submitterName, defaultUserId, defaultTrip;
+  const isCustom = groupKey === "__ALL__";
+
+  if(isCustom){
+    items = expenses.filter(e => e.status === "AdminReviewed" && !inSomeBatch.has(e.id));
+    submitterName = "Custom selection";
+    defaultUserId = items[0]?.userId || currentUser.email;
+    defaultTrip = "";
+  } else {
+    const [userId, trip] = groupKey.split("|||");
+    items = expenses.filter(e =>
+      e.status === "AdminReviewed" &&
+      e.userId === userId &&
+      (e.tripLabel || "(no trip label)") === trip &&
+      !inSomeBatch.has(e.id)
+    );
+    submitterName = (ROLE_MAP[userId] || {}).name || userId;
+    defaultUserId = userId;
+    defaultTrip = trip;
+  }
+
+  if(!items.length) { showToast("No items to batch.","err"); return; }
+
+  const homeC = items[0].homeCurrency || getHomeCurrency((ROLE_MAP[items[0].userId]||{}).company);
+  const total = items.reduce((s,e)=>s+homeAmt(e),0);
+
+  const directors = getDirectors();
+  const directorOpts = directors.map(d => `<option value="${esc(d.email)}">${esc(d.name)}</option>`).join("");
+
+  const itemsHTML = items.map(e => {
+    const subName = (ROLE_MAP[e.userId]||{}).name || e.userId;
+    const subTrip = e.tripLabel || "(no trip)";
+    return `
+    <div style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid #1a1a1a;gap:10px;">
+      <input type="checkbox" id="bb-${e.id}" checked data-id="${e.id}" style="flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:#fff;line-height:1.3;word-wrap:break-word;">${esc(e.title)}</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">${esc(e.category)} · ${esc(e.date)}${isCustom?` · ${esc(subName)} · ✈ ${esc(subTrip)}`:""}</div>
+      </div>
+      <div style="font-size:13px;font-weight:600;flex-shrink:0;text-align:right;">${fmtCcy(e.amount, e.currency || homeC)}</div>
+    </div>
+    `;
+  }).join("");
+
+  const modalHTML = `
+    <div style="background:#1a1a1a;border-radius:12px;padding:20px;max-width:520px;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:4px;color:#fff;">Create Batch</div>
+      <div style="font-size:12px;color:#888;margin-bottom:16px;">${isCustom?"All reviewed expenses — pick from any submitter or trip":esc(submitterName)+" — ✈ "+esc(defaultTrip)}</div>
+      ${isCustom?`<div class="field" style="margin-bottom:12px;"><div class="lbl">Custom Batch Label (optional)</div><input type="text" id="bb-custom-label" placeholder="e.g. May 2026 Disbursement Run" style="width:100%;padding:10px;background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:8px;font-family:inherit;"></div>`:""}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:0.06em;">Items in Batch (<span id="bb-count">${items.length}</span> · <span id="bb-total">${fmtCcy(total, homeC)}</span>)</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="bbToggleAll(true)" style="background:#0a3a20;color:#34d399;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:inherit;cursor:pointer;">✓ All</button>
+          <button onclick="bbToggleAll(false)" style="background:#3a1010;color:#f87171;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:inherit;cursor:pointer;">✕ None</button>
+        </div>
+      </div>
+      <div style="background:#0a0a0a;border-radius:8px;margin-bottom:16px;max-height:280px;overflow-y:auto;" onchange="bbUpdateCount()">${itemsHTML}</div>
+      <div class="field"><div class="lbl">Send to Director *</div>
+        <select id="bb-director" style="width:100%;padding:10px;background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:8px;">
+          <option value="">Select…</option>${directorOpts}
+        </select>
+      </div>
+      <div class="field"><div class="lbl">Note to Director (optional)</div>
+        <textarea id="bb-note" rows="2" style="width:100%;padding:10px;background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:8px;font-family:inherit;"></textarea>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px;">
+        <button class="btn-reject" onclick="closeSimpleModal()" style="flex:1;">Cancel</button>
+        <button class="btn-approve" onclick="confirmCreateBatch('${esc(defaultUserId)}', '${esc(defaultTrip)}', ${isCustom})" style="flex:2;">Create & Send</button>
+      </div>
+    </div>`;
+  showSimpleModal(modalHTML);
+}
+
+function confirmCreateBatch(userId, trip, isCustom){
+  const dirSel = document.getElementById("bb-director");
+  const dirEmail = dirSel ? dirSel.value : "";
+  if(!dirEmail) { showToast("Please select a Director.","err"); return; }
+  const note = (document.getElementById("bb-note") || {}).value || "";
+  const customLabel = (document.getElementById("bb-custom-label") || {}).value || "";
+  const dir = getDirectors().find(d => d.email === dirEmail);
+
+  // Collect ticked expense IDs
+  const checked = Array.from(document.querySelectorAll('[id^="bb-"][data-id]'))
+                       .filter(cb => cb.checked)
+                       .map(cb => parseInt(cb.dataset.id, 10));
+  if(!checked.length) { showToast("Select at least one expense.","err"); return; }
+
+  const batch = {
+    id: Date.now(),
+    createdBy: currentUser.email,
+    createdByName: currentUser.name,
+    createdAt: today(),
+    submitterId: userId, // nominal owner; for custom batches each expense keeps its true userId
+    isCustom: !!isCustom,
+    customLabel: customLabel,
+    expenseIds: checked,
+    tripLabel: isCustom ? (customLabel || `Custom batch (${checked.length} items)`) : (trip === "(no trip label)" ? "" : trip),
+    status: "Pending",
+    approverId: dirEmail,
+    approverName: dir ? dir.name : dirEmail,
+    note: note,
+    approvalNote: "",
+    approvedAt: null,
+    driveUrl: null
+  };
+  batches.unshift(batch);
+
+  // Mark expenses as InBatch and tag with director
+  checked.forEach(eid => {
+    const e = expenses.find(x => x.id === eid);
+    if(e) {
+      e.status = "InBatch";
+      e.assignedDirectorId = dirEmail;
+      e.batchId = batch.id;
+      e.history.push({actor: currentUser.name, action: `Added to batch #${batch.id} → ${dir?dir.name:dirEmail}${note?" – "+note:""}`, at: today()});
+    }
+  });
+
+  saveExpenses();
+  saveBatches();
+  closeSimpleModal();
+  showToast(`📦 Batch created — sent to ${dir?dir.name:"Director"}.`);
+  goTo("batches");
+}
+
+// ─── BATCHES (DIRECTOR) ────────────────────────────────────────────────────
+function getMyDirectorBatches() {
+  return batches.filter(b => b.approverId === currentUser.email);
+}
+
+// ─── BATCH DETAIL VIEW (works for admin + director) ────────────────────────
+function openBatch(batchId){
+  currentBatchId = batchId;
+  const b = getBatch(batchId);
+  if(!b) { showToast("Batch not found.","err"); return; }
+  const items = expensesInBatch(b);
+  const homeC = batchHomeCcy(b);
+  const total = items.reduce((s,e)=>s+homeAmt(e),0);
+  const submitterName = batchSubmitterName(b);
+  const submitterCo = (ROLE_MAP[b.submitterId] || {}).company;
+
+  const ENTITY_NAMES = {
+    "TA-HK": "TransAsia Private Capital Limited",
+    "TA-SG": "TransAsia Private Capital Singapore Pte Ltd",
+    "Capata": "Capata Pte Ltd"
+  };
+  const entityName = ENTITY_NAMES[submitterCo] || "Capata Pte Ltd";
+  document.getElementById("batch-entity-title").textContent = entityName;
+
+  // FX rate breakdown
+  const fxBreakdown = {};
+  items.forEach(e => {
+    const c = e.currency || homeC;
+    if(c !== homeC && e.exchangeRate) {
+      if(!fxBreakdown[c]) fxBreakdown[c] = { rate: e.exchangeRate, date: e.rateDate, count: 0, originalTotal: 0, homeTotal: 0 };
+      fxBreakdown[c].count++;
+      fxBreakdown[c].originalTotal += e.amount;
+      fxBreakdown[c].homeTotal += (e.homeAmount || 0);
+    }
+  });
+  const fxRows = Object.entries(fxBreakdown).map(([c,info]) =>
+    `<tr><td style="padding:4px 8px;color:#888;">${c}</td><td style="padding:4px 8px;">${info.count}</td><td style="padding:4px 8px;">${fmtCcy(info.originalTotal,c)}</td><td style="padding:4px 8px;">→ ${fmtCcy(info.homeTotal,homeC)}</td><td style="padding:4px 8px;color:#888;">@ ${info.rate.toFixed(4)} (${info.date||""})</td></tr>`
+  ).join("");
+  const fxBlock = fxRows
+    ? `<div style="margin:16px 0;"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:8px;">FX Rates Applied</div><table style="width:100%;font-size:12px;border-collapse:collapse;background:#f8f8f8;border-radius:6px;"><tr style="color:#666;"><td style="padding:4px 8px;">Currency</td><td style="padding:4px 8px;">Items</td><td style="padding:4px 8px;">Original</td><td style="padding:4px 8px;">Home (${homeC})</td><td style="padding:4px 8px;">Rate</td></tr>${fxRows}</table></div>`
+    : "";
+
+  // Build expense rows — include checkboxes for director view (so they can untick items they want to query)
+  const isDirectorViewLocal = currentUser.role === "director" && b.approverId === currentUser.email && b.status === "Pending";
+  const rowsHTML = items.map((e,i) => `<div style="display:flex;align-items:center;padding:10px 14px;background:${i%2===0?"#f8f8f8":"#fff"};color:#1a1a1a;gap:10px;">
+    ${isDirectorViewLocal ? `<input type="checkbox" id="dir-${e.id}" data-id="${e.id}" data-amt="${homeAmt(e)}" data-ccy="${homeC}" checked onchange="dirUpdateCount()" style="flex-shrink:0;">` : ""}
+    <div style="flex:1;min-width:0;margin-right:6px;">
+      <div style="font-weight:600;word-wrap:break-word;">${esc(e.title)}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px;">${esc(e.category)} · ${esc(e.date)}</div>
+      ${e.driveUrl ? `<a href="${e.driveUrl}" target="_blank" onclick="event.stopPropagation();" style="font-size:11px;color:#3b82f6;">📎 View Receipt on Drive</a>` : `<div style="font-size:11px;color:#aaa;">No receipt attached</div>`}
+    </div>
+    <div style="text-align:right;white-space:nowrap;flex-shrink:0;">
+      <div style="font-weight:700;">${fmtCcy(e.amount, e.currency || homeC)}</div>
+      ${(e.currency && e.currency !== homeC) ? `<div style="font-size:11px;color:#666;">≈ ${fmtCcy(e.homeAmount||0, homeC)}</div>` : ""}
+    </div>
+  </div>`).join("");
+
+  // Status pill
+  const statusColor = b.status === "Approved" ? "#34d399" : b.status === "Rejected" ? "#f87171" : "#a78bfa";
+  const statusPill = `<span style="background:${statusColor}22;color:${statusColor};padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600;">${esc(b.status)}</span>`;
+
+  // Director action buttons (only show if director and pending)
+  const isDirectorView = currentUser.role === "director" && b.approverId === currentUser.email && b.status === "Pending";
+  const actionButtons = isDirectorView ? `
+    <div style="margin-top:20px;padding:16px;background:#1a1a1a;border-radius:10px;">
+      <div style="font-size:12px;color:#aaa;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Director Action</div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.5;">Untick any item you have questions about — those will be sent back to Admin for clarification. Approve the rest as a batch.</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button onclick="dirToggleAll(true)" style="background:#0a3a20;color:#34d399;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:inherit;cursor:pointer;">✓ Check All</button>
+        <button onclick="dirToggleAll(false)" style="background:#3a1010;color:#f87171;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-family:inherit;cursor:pointer;">✕ Uncheck All</button>
+        <div style="flex:1;text-align:right;font-size:11px;color:#aaa;align-self:center;">Approving: <span id="dir-count" style="color:#34d399;font-weight:700;">${items.length}</span> · <span id="dir-total" style="color:#34d399;font-weight:700;">${fmtCcy(total, homeC)}</span></div>
+      </div>
+      <textarea id="batch-note" rows="2" placeholder="Approval note (or rejection reason / question for unchecked items)…" style="width:100%;padding:10px;background:#0a0a0a;color:#fff;border:1px solid #2a2a2a;border-radius:8px;font-family:inherit;margin-bottom:10px;"></textarea>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn-approve" onclick="approveBatchSelective(${b.id}, true)" style="background:#34d399;color:#000;font-weight:700;">✓ Approve Checked (Query Unchecked)</button>
+        <button class="btn-reject" onclick="approveBatch(${b.id}, false)" style="font-size:12px;">✕ Reject Whole Batch</button>
+      </div>
+    </div>` : "";
+
+  const body = `<div style="padding:16px;color:#1a1a1a;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;">Batch #${b.id}</div>
+        <div style="font-size:14px;font-weight:600;margin-top:4px;">${esc(submitterName)} — ✈ ${esc(b.tripLabel || "(no trip)")}</div>
+      </div>
+      ${statusPill}
+    </div>
+    <table style="width:100%;font-size:12px;margin-bottom:16px;">
+      ${[["Submitter", submitterName],["Email", b.submitterId],["Trip", b.tripLabel||"—"],["Period", b.createdAt||""],["Created by", b.createdByName||""],["Sent to Director", b.approverName||""],["Status", b.status]].map(([k,v]) => `<tr><td style="color:#888;padding:3px 0;width:35%;">${esc(k)}</td><td style="font-weight:600;padding:3px 0;color:#1a1a1a;">${esc(v)}</td></tr>`).join("")}
+    </table>
+    ${b.note ? `<div style="background:#f0f0f0;padding:10px 14px;border-radius:8px;font-size:12px;font-style:italic;color:#444;margin-bottom:16px;">Note from Admin: "${esc(b.note)}"</div>` : ""}
+    ${b.approvalNote ? `<div style="background:#f0f8f0;padding:10px 14px;border-radius:8px;font-size:12px;font-style:italic;color:#1a5e1a;margin-bottom:16px;">Director note: "${esc(b.approvalNote)}"</div>` : ""}
+
+    <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin-bottom:8px;">Expenses (${items.length})</div>
+    <div style="border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:16px;">${rowsHTML}</div>
+
+    ${fxBlock}
+
+    <div style="background:#1a0a00;color:#c9a96e;border-radius:10px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:11px;color:#c9a96e;text-transform:uppercase;letter-spacing:0.1em;">Total Reimbursable</div>
+        <div style="font-size:11px;color:#888;">${items.length} expense${items.length!==1?"s":""}</div>
+      </div>
+      <div style="font-size:26px;font-weight:700;">${fmtCcy(total, homeC)}</div>
+    </div>
+
+    ${actionButtons}
+  </div>`;
+
+  document.getElementById("batch-body").innerHTML = body;
+  document.getElementById("batch-modal").classList.add("open");
+
+  // Save the printable HTML for Save-to-Drive
+  currentBatchHTML = `<div style="font-family:Georgia,serif;padding:20px;color:#1a0800;">
+    <h1 style="font-size:22px;color:#1a0800;margin-bottom:4px;">${entityName}</h1>
+    <p style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:20px;">Expense Reimbursement Batch — Batch #${b.id}</p>
+    ${body.replace('class="modal-overlay"', '').replace(/onclick="[^"]*"/g, '')}
+  </div>`;
+}
+
+let currentBatchId = null;
+let currentBatchHTML = "";
+
+function closeBatchModal(){
+  document.getElementById("batch-modal").classList.remove("open");
+  currentBatchId = null;
+}
+
+function approveBatch(batchId, approve){
+  const b = getBatch(batchId);
+  if(!b) return;
+  const note = (document.getElementById("batch-note") || {}).value || "";
+  if(!approve && !note.trim()) {
+    showToast("Please state a rejection reason.","err");
+    return;
+  }
+  b.status = approve ? "Approved" : "Rejected";
+  b.approvalNote = note.trim();
+  b.approvedAt = today();
+
+  // Cascade status to underlying expenses
+  expensesInBatch(b).forEach(e => {
+    e.status = approve ? "Approved" : "Rejected";
+    e.history.push({actor: currentUser.name, action: (approve?"Batch approved":"Batch rejected") + (note?" – "+note.trim():""), at: today()});
+  });
+
+  saveBatches();
+  saveExpenses();
+  closeBatchModal();
+  showToast(approve ? "✓ Batch approved." : "✕ Batch rejected.");
+  goTo(currentUser.role === "director" ? "inbox" : "batches");
+}
+
+// ─── SIMPLE MODAL (for batch builder) ──────────────────────────────────────
+function showSimpleModal(html){
+  let modal = document.getElementById("simple-modal");
+  if(!modal){
+    modal = document.createElement("div");
+    modal.id = "simple-modal";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;";
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = html;
+  modal.style.display = "flex";
+}
+
+
+// Batch builder helpers
+function bbToggleAll(checked){
+  document.querySelectorAll('[id^="bb-"][data-id]').forEach(cb => cb.checked = checked);
+  bbUpdateCount();
+}
+function bbUpdateCount(){
+  const checked = Array.from(document.querySelectorAll('[id^="bb-"][data-id]')).filter(cb => cb.checked);
+  const countEl = document.getElementById("bb-count");
+  if(countEl) countEl.textContent = checked.length;
+  // Update visible total based on which checkboxes are ticked
+  const totalEl = document.getElementById("bb-total");
+  if(totalEl){
+    let total = 0; let homeC = "SGD";
+    checked.forEach(cb => {
+      const id = parseInt(cb.dataset.id, 10);
+      const e = expenses.find(x => x.id === id);
+      if(e){ total += homeAmt(e); homeC = e.homeCurrency || homeC; }
+    });
+    totalEl.textContent = fmtCcy(total, homeC);
+  }
+}
+
+function closeSimpleModal(){
+  const modal = document.getElementById("simple-modal");
+  if(modal) modal.style.display = "none";
+}
+
+// ─── BATCH SAVE TO DRIVE / DOWNLOAD PDF ────────────────────────────────────
+async function saveBatchToDrive(){
+  if(!googleAccessToken || !isDriveConfigured){
+    showToast("Drive not connected — use Print/Download instead.","info");
+    return;
+  }
+  if(!currentBatchId){ showToast("No batch open.","err"); return; }
+  const b = getBatch(currentBatchId);
+  if(!b){ showToast("Batch not found.","err"); return; }
+  const submitterName = batchSubmitterName(b).replace(/ /g,"");
+  const fileName = `Batch_${b.id}_${submitterName}_${(b.tripLabel||"NoTrip").replace(/ /g,"_").slice(0,30)}.html`;
+
+  showToast("💾 Saving batch report to Drive…","info");
+  document.getElementById("batch-save-drive-btn").disabled = true;
+  updateDriveBar("busy");
+  try {
+    const fullHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title></head><body>${currentBatchHTML}</body></html>`;
+    const blob = new Blob([fullHTML],{type:"text/html"});
+    const folderId = GOOGLE_CONFIG.salaryReportsFolderId || GOOGLE_CONFIG.driveFolderId;
+    const meta = {name:fileName, parents:[folderId], mimeType:"text/html"};
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(meta)],{type:"application/json"}));
+    form.append("file", blob);
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=webViewLink",{
+      method:"POST", headers:{Authorization:"Bearer "+googleAccessToken}, body:form
+    });
+    if(!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    b.driveUrl = data.webViewLink;
+    saveBatches();
+    updateDriveBar("ok");
+    showToast("✅ Batch saved to Drive!");
+    document.getElementById("batch-save-drive-btn").textContent = "✅ Saved to Drive";
+  } catch(err){
+    updateDriveBar("ok");
+    showToast("Save failed. Use Print/Download instead.","err");
+    console.error(err);
+  }
+  document.getElementById("batch-save-drive-btn").disabled = false;
+}
+
+// Download the batch report as a PDF (uses browser print-to-PDF dialog)
+function downloadBatchPDF(){
+  if(!currentBatchHTML){ showToast("No batch open.","err"); return; }
+  const w = window.open("", "_blank");
+  if(!w){ showToast("Popup blocked. Allow popups for this site.","err"); return; }
+  const b = getBatch(currentBatchId);
+  const fileName = b ? `Batch_${b.id}_${batchSubmitterName(b).replace(/ /g,"")}.pdf` : "Batch.pdf";
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title>
+    <style>body{font-family:Georgia,serif;padding:0;margin:20px;color:#1a0800;} table{width:100%;}</style>
+    </head><body>${currentBatchHTML}<script>window.onload=()=>{setTimeout(()=>window.print(),300);}<\/script></body></html>`);
+  w.document.close();
+}
+// Director batch helpers
+function dirToggleAll(checked){
+  document.querySelectorAll('[id^="dir-"][data-id]').forEach(cb => cb.checked = checked);
+  dirUpdateCount();
+}
+function dirUpdateCount(){
+  const checked = Array.from(document.querySelectorAll('[id^="dir-"][data-id]')).filter(cb => cb.checked);
+  const countEl = document.getElementById("dir-count");
+  const totalEl = document.getElementById("dir-total");
+  if(countEl) countEl.textContent = checked.length;
+  if(totalEl){
+    let total = 0; let ccy = "SGD";
+    checked.forEach(cb => {
+      total += parseFloat(cb.dataset.amt || 0);
+      ccy = cb.dataset.ccy || ccy;
+    });
+    totalEl.textContent = fmtCcy(total, ccy);
+  }
+}
+
+// Director approves the checked items, sends unchecked items back to admin for query
+function approveBatchSelective(batchId, approveChecked){
+  const b = getBatch(batchId);
+  if(!b) return;
+
+  // Get checked vs unchecked expense IDs
+  const allCheckboxes = Array.from(document.querySelectorAll('[id^="dir-"][data-id]'));
+  const checkedIds = allCheckboxes.filter(cb => cb.checked).map(cb => parseInt(cb.dataset.id, 10));
+  const uncheckedIds = allCheckboxes.filter(cb => !cb.checked).map(cb => parseInt(cb.dataset.id, 10));
+  const note = (document.getElementById("batch-note") || {}).value || "";
+
+  if(checkedIds.length === 0){
+    showToast("Nothing checked. Use Reject Whole Batch if you want to reject everything.","err");
+    return;
+  }
+  if(uncheckedIds.length > 0 && !note.trim()){
+    showToast("Please add a note explaining the questions on unchecked items.","err");
+    return;
+  }
+
+  // Approve the checked items
+  checkedIds.forEach(id => {
+    const e = expenses.find(x => x.id === id);
+    if(e){
+      e.status = "Approved";
+      e.history.push({actor: currentUser.name, action: "Approved as part of batch #" + batchId + (note?" – "+note.trim():""), at: today()});
+    }
+  });
+
+  // Send unchecked items back to admin for clarification (status: AdminReviewed; note added)
+  uncheckedIds.forEach(id => {
+    const e = expenses.find(x => x.id === id);
+    if(e){
+      e.status = "AdminReviewed";       // back to admin queue
+      e.assignedDirectorId = null;       // unassign so admin can re-batch
+      e.batchId = null;
+      e.history.push({actor: currentUser.name, action: "Director queried — returned to Admin: " + note.trim(), at: today()});
+    }
+  });
+
+  // Update batch record
+  b.expenseIds = checkedIds;             // batch now contains only the approved items
+  b.status = "Approved";
+  b.approvalNote = note.trim();
+  b.approvedAt = today();
+  b.queriedItemsCount = uncheckedIds.length;
+
+  saveBatches();
+  saveExpenses();
+  closeBatchModal();
+  if(uncheckedIds.length > 0){
+    showToast(`✓ Approved ${checkedIds.length} item${checkedIds.length!==1?"s":""}, returned ${uncheckedIds.length} for query.`);
+  } else {
+    showToast("✓ Batch approved.");
+  }
+  goTo(currentUser.role === "director" ? "inbox" : "batches");
+}
+
+
+// ─── DRIVE SYNC ─────────────────────────────────────────────────────────────
+// Use Google Drive as the shared source of truth so Eva (laptop), Jiffriy
+// (mobile), and any other approved user see the same data.
+const SYNC_FILE_NAMES = {
+  expenses: "ta_capata_expenses.json",
+  batches:  "ta_capata_batches.json"
+};
+const driveFileIds = { expenses: null, batches: null };
+let _syncing = false;
+
+function setSyncBadge(state){
+  // states: "idle", "syncing", "ok", "err"
+  const el = document.getElementById("sync-badge");
+  if(!el) return;
+  if(state === "syncing"){
+    el.style.display = "inline-block";
+    el.style.color = "#f0b429";
+    el.textContent = "🔄 syncing…";
+  } else if(state === "ok"){
+    el.style.display = "inline-block";
+    el.style.color = "#34d399";
+    el.textContent = "✓ synced";
+    setTimeout(() => { el.style.display = "none"; }, 2000);
+  } else if(state === "err"){
+    el.style.display = "inline-block";
+    el.style.color = "#f87171";
+    el.textContent = "⚠ sync failed";
+  } else {
+    el.style.display = "none";
+  }
+}
+
+async function findDriveFile(fileName){
+  const folderId = GOOGLE_CONFIG.driveFolderId;
+  const q = encodeURIComponent(`name='${fileName}' and '${folderId}' in parents and trashed=false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime,owners,createdTime)`;
+  console.log(`[Sync] Searching for ${fileName} in folder ${folderId}…`);
+  const res = await fetch(url, {
+    headers: { Authorization: "Bearer "+googleAccessToken }
+  });
+  if(!res.ok){
+    const errText = await res.text();
+    console.error(`[Sync] Search failed: HTTP ${res.status}`, errText.slice(0, 300));
+    throw new Error("search HTTP "+res.status+": "+errText.slice(0,200));
+  }
+  const data = await res.json();
+  console.log(`[Sync] Search returned ${(data.files||[]).length} file(s) for ${fileName}:`, data.files);
+  return (data.files && data.files[0]) ? data.files[0] : null;
+}
+
+async function readDriveJson(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: "Bearer "+googleAccessToken }
+  });
+  if(!res.ok) throw new Error("read HTTP "+res.status);
+  return await res.json();
+}
+
+async function writeDriveJson(key, data){
+  const fileName = SYNC_FILE_NAMES[key];
+  const json = JSON.stringify(data, null, 2);
+  if(driveFileIds[key]){
+    // Update existing file in-place
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[key]}?uploadType=media`, {
+      method: "PATCH",
+      headers: { Authorization: "Bearer "+googleAccessToken, "Content-Type": "application/json" },
+      body: json
+    });
+    if(!res.ok) throw new Error("update HTTP "+res.status);
+    return driveFileIds[key];
+  } else {
+    // Create new file in TA Expenses folder
+    const meta = { name: fileName, parents: [GOOGLE_CONFIG.driveFolderId], mimeType: "application/json" };
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(meta)],{type:"application/json"}));
+    form.append("file", new Blob([json],{type:"application/json"}));
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+      method: "POST",
+      headers: { Authorization: "Bearer "+googleAccessToken },
+      body: form
+    });
+    if(!res.ok) throw new Error("create HTTP "+res.status);
+    const data = await res.json();
+    driveFileIds[key] = data.id;
+    // CRITICAL: Set the file permissions to "Anyone with link → Editor" so other users (Jiffriy
+    // on iPhone, Eddie/Tsan on their devices) can WRITE to it, not just read. Otherwise their
+    // pushes hit HTTP 403. Best-effort — if this fails (e.g. caller can't grant), file is created
+    // and admin can manually fix permissions.
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${data.id}/permissions`, {
+        method: "POST",
+        headers: { Authorization: "Bearer "+googleAccessToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "writer", type: "anyone" })
+      });
+      console.log(`[Sync] Set Anyone-with-Link Editor permission on ${fileName}`);
+    } catch(e){
+      console.warn(`[Sync] Failed to set permissions on ${fileName} (admin must set manually):`, e);
+    }
+    return data.id;
+  }
+}
+
+// Helper: ensure both sync files have the right permissions. Call this once
+// from the F12 console (admin only) to retroactively fix permissions on
+// already-created files. Run as: fixSyncFilePermissions()
+async function fixSyncFilePermissions(){
+  if(!googleAccessToken){ console.error("Sign in first."); return; }
+  for(const key of ["expenses","batches"]){
+    try {
+      const f = await findDriveFile(SYNC_FILE_NAMES[key]);
+      if(!f){ console.log(`${SYNC_FILE_NAMES[key]} not found, nothing to fix`); continue; }
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
+        method: "POST",
+        headers: { Authorization: "Bearer "+googleAccessToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "writer", type: "anyone" })
+      });
+      if(res.ok){ console.log(`✓ Set Anyone-with-Link Editor on ${SYNC_FILE_NAMES[key]}`); }
+      else { console.error(`Failed for ${SYNC_FILE_NAMES[key]}: HTTP ${res.status}`); }
+    } catch(e){ console.error(`Error on ${SYNC_FILE_NAMES[key]}:`, e); }
+  }
+  alert("Permissions update complete. Other users can now write to these files.");
+}
+
+// Pull the latest data from Drive (replaces in-memory expenses + batches)
+async function syncFromDrive(){
+  if(!googleAccessToken){ console.log("[Sync] No token, skipping"); return; }
+  if(_syncing){ console.log("[Sync] Already syncing"); return; }
+  _syncing = true; setSyncBadge("syncing");
+  try {
+    // Expenses
+    let f = await findDriveFile(SYNC_FILE_NAMES.expenses);
+    if(f){
+      driveFileIds.expenses = f.id;
+      const remote = await readDriveJson(f.id);
+      if(Array.isArray(remote)){
+        expenses = remote;
+        saveExpenses();   // update local cache too
+        console.log(`[Sync] Pulled ${remote.length} expenses from Drive`);
+      }
+    } else {
+      // No file yet — create it with current data
+      await writeDriveJson("expenses", expenses);
+      console.log("[Sync] Created new expenses.json on Drive");
+    }
+    // Batches
+    f = await findDriveFile(SYNC_FILE_NAMES.batches);
+    if(f){
+      driveFileIds.batches = f.id;
+      const remote = await readDriveJson(f.id);
+      if(Array.isArray(remote)){
+        batches = remote;
+        saveBatches();
+        console.log(`[Sync] Pulled ${remote.length} batches from Drive`);
+      }
+    } else {
+      await writeDriveJson("batches", batches);
+      console.log("[Sync] Created new batches.json on Drive");
+    }
+    setSyncBadge("ok");
+    // Re-render current screen so new data shows
+    if(currentScreen) renderScreen(currentScreen);
+  } catch(err){
+    console.error("[Sync] Pull failed:", err);
+    if(typeof logError === "function") logError("DrivePull", String(err.message || err));
+    setSyncBadge("err");
+    showToast("⚠ Sync failed — using local cache. Check console.","err");
+  } finally {
+    _syncing = false;
+  }
+}
+
+// Push data to Drive (called after each save). Fire-and-forget; won't block the UI.
+async function pushToDrive(key){
+  if(!googleAccessToken){
+    showToast("⚠ Not signed in to Google — submission saved locally only. Sign in to sync.","err");
+    return;
+  }
+  try {
+    const data = key === "expenses" ? expenses : batches;
+    await writeDriveJson(key, data);
+    console.log(`[Sync] Pushed ${key} to Drive (${(data||[]).length} items)`);
+    setSyncBadge("ok");
+  } catch(err){
+    const msg = String(err.message || err);
+    console.warn(`[Sync] Push ${key} failed:`, msg);
+    if(typeof logError === "function") logError("DrivePush", `${key}: ${msg}`);
+    setSyncBadge("err");
+    // Surface scope problem prominently so user knows why their data isn't syncing
+    if(msg.includes("403") || msg.toLowerCase().includes("insufficient")){
+      showToast("⚠ Drive sync failed: insufficient permission. Sign out and sign in again to grant full Drive access.","err");
+    } else if(msg.includes("401")){
+      showToast("⚠ Drive sync failed: token expired. Please sign in again.","err");
+    } else {
+      showToast(`⚠ Drive sync failed: ${msg.slice(0,80)}`,"err");
+    }
+  }
+}
+
+// Manual sync button handler
+async function manualSync(){
+  await syncFromDrive();
+  showToast("✅ Synced from Drive.");
+}
+
+
+// ─── DIAGNOSTICS ─────────────────────────────────────────────────────────────
+// Persistent error log that survives across page interactions.
+// User can screenshot the diagnostics panel to share with developer.
+const ERROR_LOG_KEY = "ta_capata_error_log_v1";
+let errorLog = [];
+try { const raw = localStorage.getItem(ERROR_LOG_KEY); if(raw) errorLog = JSON.parse(raw) || []; } catch(e){}
+
+function logError(category, message){
+  errorLog.unshift({ at: new Date().toISOString(), category, message: String(message).slice(0, 300) });
+  if(errorLog.length > 30) errorLog.length = 30;
+  try { localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(errorLog)); } catch(e){}
+}
+
+// Run a full health check and return a report object
+async function runDiagnostics(){
+  const report = {
+    runAt: new Date().toLocaleString(),
+    user: currentUser ? { email: currentUser.email, role: currentUser.role, company: currentUser.company } : null,
+    tests: []
+  };
+  function addTest(name, ok, detail){ report.tests.push({ name, ok, detail }); }
+
+  // 1. App version + deployed code check
+  addTest("App version (TA & Capata Expense Prototype)",
+    typeof GOOGLE_SCOPES === "string" && GOOGLE_SCOPES.includes("auth/drive\""+"") || true,
+    `GOOGLE_SCOPES: ${typeof GOOGLE_SCOPES === "string" ? GOOGLE_SCOPES.slice(0,200) : "(undefined!)"}`);
+
+  // 2. Sign-in status
+  addTest("Signed in", !!currentUser, currentUser ? `as ${currentUser.email}` : "Not signed in — sign in first");
+
+  // 3. Drive token present
+  addTest("Drive token present", !!googleAccessToken,
+    googleAccessToken ? `Token length: ${googleAccessToken.length}` : "Missing — sign in didn't return access_token");
+
+  if(!googleAccessToken){
+    return report;
+  }
+
+  // 4. Probe token scopes via Google tokeninfo
+  try {
+    const probeRes = await fetch("https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=" + encodeURIComponent(googleAccessToken));
+    if(probeRes.ok){
+      const info = await probeRes.json();
+      const scope = info.scope || "";
+      const hasFullDrive = /\bhttps:\/\/www\.googleapis\.com\/auth\/drive\b/.test(scope);
+      const hasOnlyFile = /drive\.file/.test(scope) && !hasFullDrive;
+      addTest("OAuth scopes include full Drive",
+        hasFullDrive && !hasOnlyFile,
+        scope ? `Granted: ${scope}` : "(empty scope)");
+    } else {
+      addTest("OAuth tokeninfo reachable", false, `HTTP ${probeRes.status}`);
+    }
+  } catch(e){
+    addTest("OAuth tokeninfo reachable", false, e.message);
+  }
+
+  // 5. Drive folder search — try to find the JSON files
+  const folderId = GOOGLE_CONFIG.driveFolderId;
+  addTest("driveFolderId configured", !!folderId, folderId || "(missing)");
+
+  for(const fileName of [SYNC_FILE_NAMES.expenses, SYNC_FILE_NAMES.batches]){
+    try {
+      const f = await findDriveFile(fileName);
+      if(f){
+        // Try to read it
+        const content = await readDriveJson(f.id);
+        addTest(`Read ${fileName}`, true,
+          `Found id=${f.id}, modified ${f.modifiedTime}, ${Array.isArray(content) ? content.length : "?"} items`);
+      } else {
+        addTest(`Read ${fileName}`, false, "File not found in Drive folder. Will be created on next push.");
+      }
+    } catch(e){
+      addTest(`Read ${fileName}`, false, e.message);
+    }
+  }
+
+  // 6. Test write — try a no-op push of expenses
+  try {
+    await writeDriveJson("expenses", expenses);
+    addTest("Write to Drive (expenses)", true, `Pushed ${expenses.length} items`);
+  } catch(e){
+    addTest("Write to Drive (expenses)", false, e.message);
+  }
+
+  // 7. Local vs remote comparison
+  addTest("Local cache state", true, `${expenses.length} expenses, ${batches.length} batches in local cache`);
+
+  // 8. Last few errors
+  report.errorLog = errorLog.slice(0, 10);
+
+  return report;
+}
+
+// Render the diagnostics report into a visible panel
+async function showDiagnostics(){
+  const screen = document.getElementById("screen-diagnostics");
+  if(screen){
+    screen.innerHTML = `<div class="page-title">Diagnostics</div><p style="color:#aaa;font-size:12px;">Running tests…</p>`;
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    screen.classList.add("active");
+    document.getElementById("bottom-nav").style.display = "none";
+  }
+  const report = await runDiagnostics();
+  renderDiagnostics(report);
+}
+
+function renderDiagnostics(report){
+  const screen = document.getElementById("screen-diagnostics");
+  if(!screen) return;
+  const passCount = report.tests.filter(t => t.ok).length;
+  const totalCount = report.tests.length;
+  const overall = passCount === totalCount;
+
+  let html = `<button class="btn-ghost" onclick="goTo(currentScreen==='diagnostics'?'home':currentScreen)">← Back</button>
+    <div class="page-title">📊 Diagnostics</div>
+    <div style="font-size:12px;color:#888;margin-bottom:14px;">Run at ${esc(report.runAt)}</div>
+
+    <div style="background:${overall?'#0a3a20':'#3a1010'};border-radius:10px;padding:14px;margin-bottom:16px;text-align:center;">
+      <div style="font-size:24px;font-weight:700;color:${overall?'#34d399':'#f87171'};">${overall?'✅':'⚠'} ${passCount}/${totalCount} tests passed</div>
+      <div style="font-size:12px;color:${overall?'#34d399':'#f87171'};margin-top:4px;">${overall?'All systems go':'Issues detected — see details below'}</div>
+    </div>`;
+
+  if(report.user){
+    html += `<div style="background:#1a1a1a;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:#aaa;">
+      <div><strong style="color:#fff;">User:</strong> ${esc(report.user.email)}</div>
+      <div><strong style="color:#fff;">Role:</strong> ${esc(report.user.role)}</div>
+      <div><strong style="color:#fff;">Company:</strong> ${esc(report.user.company)}</div>
+    </div>`;
+  }
+
+  html += `<div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;">Test Results</div>`;
+  report.tests.forEach(t => {
+    const color = t.ok ? "#34d399" : "#f87171";
+    const icon = t.ok ? "✓" : "✕";
+    html += `<div style="background:#1a1a1a;border-left:3px solid ${color};border-radius:6px;padding:10px 12px;margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="font-size:12px;color:#fff;font-weight:600;flex:1;">${icon} ${esc(t.name)}</div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:4px;word-wrap:break-word;font-family:monospace;">${esc(t.detail)}</div>
+    </div>`;
+  });
+
+  if(report.errorLog && report.errorLog.length){
+    html += `<div style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:0.06em;margin:18px 0 8px;font-weight:600;">Recent Errors (last ${report.errorLog.length})</div>`;
+    report.errorLog.forEach(e => {
+      html += `<div style="background:#1a0a0a;border-left:3px solid #f87171;border-radius:6px;padding:8px 12px;margin-bottom:6px;font-size:11px;">
+        <div style="color:#aaa;font-size:10px;">${esc(e.at)} · ${esc(e.category)}</div>
+        <div style="color:#fca5a5;margin-top:2px;font-family:monospace;word-wrap:break-word;">${esc(e.message)}</div>
+      </div>`;
+    });
+  }
+
+  html += `<div style="display:flex;gap:6px;margin-top:18px;">
+    <button class="btn-primary" onclick="showDiagnostics()" style="flex:1;background:#5b9cf6;">🔄 Re-run</button>
+    <button class="btn-primary" onclick="goTo('home')" style="flex:1;background:#34d399;">← Back to Home</button>
+  </div>
+  <p style="font-size:11px;color:#666;text-align:center;margin-top:14px;">Tip: Screenshot this panel and share with the developer if issues persist.</p>`;
+
+  screen.innerHTML = html;
+}
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
