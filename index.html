@@ -27,40 +27,126 @@
   --accent-gold: #c9a96e;
 }
 body.light-mode {
-  --bg: #f5f5f5;
+  --bg: #f4f5f7;
   --bg-card: #ffffff;
-  --bg-card-2: #fafafa;
+  --bg-card-2: #fafbfc;
   --bg-input: #ffffff;
   --bg-elev: #ffffff;
   --text-primary: #1a1a1a;
-  --text-secondary: #555;
-  --text-muted: #888;
-  --border: #d0d0d0;
-  --border-strong: #b0b0b0;
+  --text-secondary: #4a5568;
+  --text-muted: #6b7280;
+  --border: #e2e4e8;
+  --border-strong: #c8cdd4;
+  --accent-gold: #b8985c;
 }
-body.light-mode { background: var(--bg) !important; color: var(--text-primary); }
-body.light-mode html, body.light-mode body { background: var(--bg) !important; }
-body.light-mode #main-app { background: var(--bg); color: var(--text-primary); }
+
+/* Light-mode global flip */
+body.light-mode,
+body.light-mode html,
+body.light-mode #main-app,
+body.light-mode #login-screen { background: var(--bg) !important; color: var(--text-primary) !important; }
+
+/* Headers, top bars, dividers */
+body.light-mode .top-bar,
+body.light-mode #top-bar,
+body.light-mode .header,
+body.light-mode .drive-bar,
+body.light-mode #bottom-nav,
+body.light-mode .tab-bar,
+body.light-mode .chip-row { background: var(--bg-card) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+body.light-mode .divider-dark { background: var(--border) !important; }
+body.light-mode .drive-bar { color: var(--text-muted) !important; }
+
+/* All known card-like surfaces */
 body.light-mode .card,
+body.light-mode .card-blue,
 body.light-mode .exp-card,
-body.light-mode .action-box { background: var(--bg-card) !important; border-color: var(--border) !important; box-shadow: 0 1px 3px rgba(0,0,0,.06); color: var(--text-primary); }
-body.light-mode .field input:not([type="checkbox"]):not([type="radio"]),
-body.light-mode .field select,
-body.light-mode .field textarea,
-body.light-mode #main-app input:not([type="checkbox"]):not([type="radio"]),
-body.light-mode #main-app select,
-body.light-mode #main-app textarea { background: var(--bg-input) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
-body.light-mode .lbl { color: var(--text-secondary) !important; }
-body.light-mode .page-title { color: var(--text-primary) !important; }
-body.light-mode .exp-title, body.light-mode .stat-val { color: var(--text-primary) !important; }
-body.light-mode #bottom-nav { background: var(--bg-card); border-top: 1px solid var(--border); }
-body.light-mode .top-bar { background: var(--bg-card); border-bottom: 1px solid var(--border); }
-body.light-mode .divider-dark { background: var(--border); }
-body.light-mode .drive-bar { background: var(--bg-card-2); border-bottom: 1px solid var(--border); color: var(--text-muted); }
-body.light-mode .wf-step { background: var(--bg-card-2); border-color: var(--border); color: var(--text-muted); }
-body.light-mode .wf-arrow { background: var(--border-strong); }
-body.light-mode .signout-btn { color: var(--text-secondary); border-color: var(--border); background: var(--bg-card); }
-body.light-mode .role-badge { color: var(--text-primary); }
+body.light-mode .exp-row,
+body.light-mode .inbox-row,
+body.light-mode .action-box,
+body.light-mode .action-box-title,
+body.light-mode .alert-banner,
+body.light-mode .demo-banner,
+body.light-mode .demo-box,
+body.light-mode .demo-section,
+body.light-mode .login-card,
+body.light-mode .report-header { background: var(--bg-card) !important; border: 1px solid var(--border) !important; box-shadow: 0 1px 3px rgba(0,0,0,.05); color: var(--text-primary) !important; }
+
+/* Workflow strip pills */
+body.light-mode .wf-step { background: var(--bg-card-2) !important; border-color: var(--border) !important; color: var(--text-muted) !important; }
+body.light-mode .wf-arrow { background: var(--border-strong) !important; }
+
+/* Inputs, selects, textareas (excluding checkboxes via :not) */
+body.light-mode input:not([type="checkbox"]):not([type="radio"]),
+body.light-mode select,
+body.light-mode textarea { background: var(--bg-input) !important; border-color: var(--border) !important; color: var(--text-primary) !important; }
+body.light-mode select option { background: var(--bg-input) !important; color: var(--text-primary) !important; }
+
+/* Section headings, labels, page titles */
+body.light-mode .lbl,
+body.light-mode .sec-head,
+body.light-mode .demo-or { color: var(--text-secondary) !important; }
+body.light-mode .page-title,
+body.light-mode .login-heading,
+body.light-mode .exp-title,
+body.light-mode .stat-val,
+body.light-mode .action-box-title { color: var(--text-primary) !important; }
+
+/* Bottom nav buttons */
+body.light-mode .nav-btn { color: var(--text-muted) !important; }
+body.light-mode .nav-btn.active { color: var(--accent-gold) !important; }
+
+/* Sign out + ghost buttons */
+body.light-mode .signout-btn,
+body.light-mode .btn-ghost { color: var(--text-secondary) !important; border-color: var(--border) !important; background: var(--bg-card) !important; }
+
+/* Role badge */
+body.light-mode .role-badge { color: var(--text-primary) !important; }
+
+/* CATCH-ALL: any element with an inline dark hex background gets flipped to a light card.
+   Targets the dark hexes we found in the audit. Goal: nothing stays dark in light mode. */
+body.light-mode [style*="background:#0"],
+body.light-mode [style*="background: #0"],
+body.light-mode [style*="background:#1a"],
+body.light-mode [style*="background: #1a"],
+body.light-mode [style*="background:#1e"],
+body.light-mode [style*="background: #1e"],
+body.light-mode [style*="background:#111"],
+body.light-mode [style*="background: #111"],
+body.light-mode [style*="background:#2a"],
+body.light-mode [style*="background: #2a"],
+body.light-mode [style*="background:#3a"],
+body.light-mode [style*="background: #3a"],
+body.light-mode [style*="background:#444"],
+body.light-mode [style*="background: #444"] {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+
+/* But keep accent-tinted backgrounds visible — give them light tints */
+body.light-mode [style*="background:#0a3a20"],   /* green */
+body.light-mode [style*="background:#0a1e12"]   { background: #e8f7ee !important; color: #0a5c2e !important; }
+body.light-mode [style*="background:#0f1e35"],   /* blue */
+body.light-mode [style*="background:#1a3a6a"],
+body.light-mode [style*="background:#0a1020"]   { background: #e8f0fb !important; color: #1e3a8a !important; }
+body.light-mode [style*="background:#1a1500"],   /* gold/yellow */
+body.light-mode [style*="background:#1e1500"]   { background: #fff7e0 !important; color: #92660a !important; }
+body.light-mode [style*="background:#1a0f2e"]   { background: #f3edff !important; color: #5b21b6 !important; }   /* purple */
+body.light-mode [style*="background:#1a0a0a"],
+body.light-mode [style*="background:#1e0a0a"],
+body.light-mode [style*="background:#3a1010"]   { background: #fde8e8 !important; color: #991b1b !important; }   /* red */
+body.light-mode [style*="background:#1a0a00"],
+body.light-mode [style*="background:#1a0800"]   { background: #fff7e0 !important; color: #5b3a00 !important; }   /* dark gold/total bar — use cream */
+
+/* Accent text — gold stays gold but slightly darker for legibility on white */
+body.light-mode [style*="color:#c9a96e"],
+body.light-mode [style*="color: #c9a96e"] { color: #8a6a2e !important; }
+
+/* Light-shadow cards already have a border */
+body.light-mode .demo-banner { background: #fff7e0 !important; color: #5b3a00 !important; border-color: #f0d088 !important; }
+body.light-mode #sync-warning-banner { background: #fde8e8 !important; color: #991b1b !important; border-color: #f0a0a0 !important; }
+
 
 html,body{height:100%;background:#080808;overscroll-behavior:none;-webkit-overflow-scrolling:touch;}
 ::-webkit-scrollbar{display:none;}
