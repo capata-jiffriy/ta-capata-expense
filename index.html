@@ -155,6 +155,40 @@ body.light-mode [style*="background:#1a0800"]   { background: #fff7e0 !important
 body.light-mode [style*="color:#c9a96e"],
 body.light-mode [style*="color: #c9a96e"] { color: #8a6a2e !important; }
 
+
+/* Quick Actions tiles + bottom nav had hardcoded dark backgrounds in their
+   class rules — these need explicit light overrides (the catch-all only catches inline styles). */
+body.light-mode .action-btn { background: var(--bg-card) !important; border: 1px solid var(--border) !important; color: var(--text-primary) !important; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+body.light-mode .action-btn:hover { background: var(--bg-card-2) !important; }
+body.light-mode .nav { background: var(--bg-card) !important; border-top: 1px solid var(--border) !important; }
+body.light-mode .nav-btn { color: var(--text-muted) !important; }
+body.light-mode .nav-btn.active { color: var(--accent-gold) !important; }
+
+/* Login screen had its own dark backgrounds */
+body.light-mode #login-screen { background: var(--bg) !important; }
+body.light-mode .login-card { background: var(--bg-card) !important; border: 1px solid var(--border) !important; }
+body.light-mode .login-heading,
+body.light-mode .login-tagline,
+body.light-mode .demo-title,
+body.light-mode .demo-subtitle { color: var(--text-primary) !important; }
+
+/* Toast notifications */
+body.light-mode .toast { background: #1a1a1a !important; color: #fff !important; }
+
+/* Status pills — keep colored borders but lighten backgrounds */
+body.light-mode .pill { background: var(--bg-card) !important; }
+
+/* Misc dark backgrounds via CSS classes */
+body.light-mode .alert-banner { background: #fff7e0 !important; color: #92660a !important; border-color: #f0d088 !important; }
+body.light-mode .stat-grid > * { background: var(--bg-card) !important; border: 1px solid var(--border) !important; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+body.light-mode .card-blue { background: #e8f0fb !important; border-color: #c9d8eb !important; color: #1e3a8a !important; }
+
+/* The big page background — make sure even after #main-app's max-width, 
+   the html sides show light not dark */
+html.light-mode { background: #f4f5f7 !important; min-height: 100%; }
+html.light-mode > body { background: #f4f5f7 !important; min-height: 100vh; }
+html.light-mode #main-app { background: #f4f5f7 !important; min-height: 100vh; }
+
 /* Light-shadow cards already have a border */
 body.light-mode .demo-banner { background: #fff7e0 !important; color: #5b3a00 !important; border-color: #f0d088 !important; }
 body.light-mode #sync-warning-banner { background: #fde8e8 !important; color: #991b1b !important; border-color: #f0a0a0 !important; }
