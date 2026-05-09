@@ -939,76 +939,175 @@ function parseVendorFromText(text){
 }
 
 // Run OCR on a base64 image and pre-fill form fields.
+
+
+// ─── CLAUDE VISION OCR (preferred — much better than OCR.space) ────────────
+// Requires an Anthropic API key. Set window.CLAUDE_API_KEY (or fill the
+// placeholder below) before submitting receipts. Get a key from
+// https://console.anthropic.com/ — pricing is ~$0.003 per receipt photo
+// (Sonnet 4.6 with vision input).
+//
+// Security note: API key is embedded in browser JS — anyone who views source
+// can steal it. For a prototype with a trusted small team, that's OK. For
+// production, route via a backend proxy.
+const CLAUDE_CONFIG = {
+  // Cloudflare Worker proxies our Claude calls — keeps the API key off the client.
+  // Worker code: github.com/capata-jiffriy/ta-capata-expense — see deploy/worker.js
+  proxyUrl: "https://ta-claude-proxy.jchandra.workers.dev",
+  model: "claude-sonnet-4-5-20250929"
+};
+
+async function runOCRViaClaude(base64DataUrl){
+  if(!CLAUDE_CONFIG.proxyUrl) throw new Error("No proxy URL configured");
+
+  // Strip the data URL prefix and detect media type
+  const m = base64DataUrl.match(/^data:(image\/\w+);base64,(.*)$/);
+  if(!m) throw new Error("Invalid image data URL");
+  const mediaType = m[1];
+  const base64Data = m[2];
+
+  const promptText = `Extract these fields from this receipt photo:
+- vendor: the name of the merchant/payee at the top of the receipt
+- amount: the total amount (final amount paid, including tax/tip — the largest, most prominent number, usually labelled TOTAL or AMOUNT DUE)
+- date: the transaction date in strict YYYY-MM-DD format
+- currency: the 3-letter ISO currency code (USD, EUR, HKD, SGD, GBP, JPY, CNY, AUD, KRW, INR, MYR, THB, IDR, PHP, NZD, CAD, CHF, etc.) — infer from currency symbol or text on the receipt
+
+Return ONLY a JSON object, no markdown, no commentary. Example:
+{"vendor":"Starbucks Coffee","amount":12.45,"date":"2026-05-08","currency":"USD"}
+
+If a field is unclear or not visible, use null for that field.`;
+
+  // Call OUR Cloudflare Worker proxy. The Worker holds the secret API key and
+  // forwards to Anthropic. No key in browser code.
+  const res = await fetch(CLAUDE_CONFIG.proxyUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: CLAUDE_CONFIG.model,
+      max_tokens: 256,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
+          { type: "text", text: promptText }
+        ]
+      }]
+    })
+  });
+
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error(`Proxy HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const text = data?.content?.[0]?.text || "";
+  console.log("[OCR/Claude] Response:", text);
+
+  // Extract JSON from response
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if(!jsonMatch) throw new Error("No JSON in Claude response");
+  const parsed = JSON.parse(jsonMatch[0]);
+  return parsed;
+}
+
 async function runOCROnImage(base64DataUrl){
   const statusEl = document.getElementById("ocr-status");
-  if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Scanning receipt…</span>`;
+  if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Reading receipt with Claude Vision…</span>`;
 
+  // Try Claude Vision first if configured (much better accuracy)
+  if(CLAUDE_CONFIG.proxyUrl){
+    try {
+      const result = await runOCRViaClaude(base64DataUrl);
+      let filled = [];
+      if(result.vendor && !document.getElementById("f-title").value){
+        document.getElementById("f-title").value = result.vendor;
+        filled.push("vendor");
+      }
+      if(typeof result.amount === "number" && !document.getElementById("f-amount").value){
+        document.getElementById("f-amount").value = Number(result.amount).toFixed(2);
+        filled.push("amount");
+      }
+      if(result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date)){
+        document.getElementById("f-date").value = result.date;
+        filled.push("date");
+      }
+      if(result.currency){
+        const sel = document.getElementById("f-currency");
+        if(sel && Array.from(sel.options).some(o => o.value === result.currency)){
+          sel.value = result.currency;
+          filled.push("currency " + result.currency);
+        }
+      }
+      if(statusEl){
+        if(filled.length){
+          statusEl.innerHTML = `<span style="color:#34d399;">✓ Auto-filled ${filled.join(", ")} (Claude Vision) — please verify</span>`;
+        } else {
+          statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ Claude couldn't extract structured fields — please fill manually.</span>`;
+        }
+      }
+      return;
+    } catch(err){
+      console.warn("[OCR/Claude] failed, falling back to OCR.space:", err);
+      // Fall through to OCR.space fallback
+    }
+  }
+
+  // ── Fallback: OCR.space ──
+  if(statusEl) statusEl.innerHTML = `<span style="color:#f0b429;">🔍 Reading receipt (OCR.space)…</span>`;
   try {
-    // Use OCR.space API — free tier with public test key, much better than Tesseract for receipts.
-    // Upgrade path: register at https://ocr.space/ocrapi for your own free key (500 calls/day),
-    // and replace OCR_API_KEY below with your key.
-    const OCR_API_KEY = "helloworld";  // OCR.space free public key. For higher rate limits, register at https://ocr.space/ocrapi  // Public free key — limited rate. Replace with yours for production.
-
+    const OCR_API_KEY = "helloworld";
     const formData = new FormData();
     formData.append("base64Image", base64DataUrl);
     formData.append("apikey", OCR_API_KEY);
     formData.append("language", "eng");
-    formData.append("isTable", "true");        // helps with receipts
-    formData.append("OCREngine", "2");          // newer engine, better accuracy
-    formData.append("scale", "true");           // auto-scale low-res images
+    formData.append("isTable", "true");
+    formData.append("OCREngine", "2");
+    formData.append("scale", "true");
     formData.append("detectOrientation", "true");
 
     const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: formData });
     if(!res.ok) throw new Error("OCR API HTTP " + res.status);
     const data = await res.json();
-    if(data.IsErroredOnProcessing){
-      throw new Error(data.ErrorMessage?.[0] || data.ErrorMessage || "OCR processing error");
-    }
+    if(data.IsErroredOnProcessing) throw new Error(data.ErrorMessage?.[0] || "OCR error");
     const text = data?.ParsedResults?.[0]?.ParsedText || "";
-    console.log("[OCR] Raw text:\n" + text.slice(0, 500));
+    console.log("[OCR/space] Raw text:\n" + text.slice(0, 500));
 
     if(!text){
-      if(statusEl) statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ No text recognized — please fill in manually.</span>`;
+      if(statusEl) statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ No text recognized — please fill manually.</span>`;
       return;
     }
 
-    // Parse fields from extracted text
     const amount = parseAmountFromText(text);
     const date   = parseDateFromText(text);
     const vendor = parseVendorFromText(text);
     const ccy    = parseCurrencyFromText(text);
 
-    // Pre-fill ONLY blank fields (don't overwrite user input)
     let filled = [];
     if(vendor && !document.getElementById("f-title").value){
-      document.getElementById("f-title").value = vendor;
-      filled.push("vendor");
+      document.getElementById("f-title").value = vendor; filled.push("vendor");
     }
     if(amount && !document.getElementById("f-amount").value){
-      document.getElementById("f-amount").value = amount.toFixed(2);
-      filled.push("amount");
+      document.getElementById("f-amount").value = amount.toFixed(2); filled.push("amount");
     }
     if(date && /^\d{4}-\d{2}-\d{2}$/.test(date)){
-      document.getElementById("f-date").value = date;
-      filled.push("date");
+      document.getElementById("f-date").value = date; filled.push("date");
     }
     if(ccy){
       const sel = document.getElementById("f-currency");
       if(sel && Array.from(sel.options).some(o => o.value === ccy)){
-        sel.value = ccy;
-        filled.push("currency " + ccy);
+        sel.value = ccy; filled.push("currency " + ccy);
       }
     }
 
     if(statusEl){
       if(filled.length){
-        statusEl.innerHTML = `<span style="color:#34d399;">✓ Auto-filled ${filled.join(", ")} — please verify</span>`;
+        statusEl.innerHTML = `<span style="color:#34d399;">✓ Auto-filled ${filled.join(", ")} (OCR.space) — please verify</span>`;
       } else {
-        statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ Couldn't extract structured fields — please fill manually.</span>`;
+        statusEl.innerHTML = `<span style="color:#a78bfa;">ⓘ Couldn't extract — please fill manually.</span>`;
       }
     }
   } catch(err){
-    console.error("[OCR] failed:", err);
+    console.error("[OCR] all attempts failed:", err);
     if(statusEl) statusEl.innerHTML = `<span style="color:#f87171;">OCR failed (${(err.message||"error").slice(0,60)}) — fill manually</span>`;
   }
 }
