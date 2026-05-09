@@ -619,6 +619,8 @@ body.light-mode .report-sub { color: #6b7280 !important; font-size: 11px; letter
       <div id="inbox-list"></div>
     </div>
 
+    <div id="screen-users" class="screen"></div>
+
     <div id="screen-batches" class="screen">
       <!-- content rendered by renderBatches() at runtime -->
     </div>
@@ -656,7 +658,6 @@ body.light-mode .report-sub { color: #6b7280 !important; font-size: 11px; letter
         <div><div class="report-title" id="batch-entity-title">Capata Pte Ltd</div><div class="report-sub">Expense Reimbursement Batch</div></div>
         <div class="report-btns no-print" style="margin-top:8px;">
           <button id="batch-pdf-btn" onclick="exportBatchPDFFull()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">📑 Export &amp; Save (PDF + Receipts)</button>
-          <button onclick="sendBatchForESignature()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;" title="Send to Director via Adobe Sign">✍ Send for E-Signature</button>
           <button id="mark-completed-btn" onclick="markBatchCompleted(currentBatchId)" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;" title="Mark this batch as completed — moves it off the active list">✓ Mark Completed</button>
           <button onclick="closeBatchModal()" style="background:transparent;color:#666;border:1px solid #ccc;border-radius:8px;width:36px;height:36px;font-size:14px;cursor:pointer;font-family:inherit;">✕</button>
         </div>
@@ -690,25 +691,31 @@ const GOOGLE_CONFIG = {
 // Assign roles by Google account email address.
 // IMPORTANT: Replace PLACEHOLDER with Jiffriy's actual Gmail when known.
 // Any Google account not listed here will be denied access.
-const ROLE_MAP = {
+const SEED_ROLE_MAP = {
+  // ── Global Admin (owns the Drive folder; can sign in for system maintenance) ──
+  "taexpenseclaim@gmail.com":         { role:"admin", name:"TA Expense (Global Admin)", company:"TA-HK", salary:0, scope:"global" },
 
-  // ── ADMINISTRATOR ──────────────────────────────────────────────────────────
-  // Eva Cheung — test admin, owns the Google Drive folder
-  "taexpenseclaim@gmail.com": { role:"admin", name:"Eva Cheung", company:"TA-HK", salary:0 },
+  // ── Regional Admins ──
+  "echeung@taprivatecapital.com":     { role:"admin", name:"Eva Cheung",      company:"TA-HK", salary:0 },
+  "csoriano@taprivatecapital.com":    { role:"admin", name:"Carla Soriano",   company:"TA-SG", salary:0 },
 
-  // ── DIRECTORS ─────────────────────────────────────────────────────────────
-  // Jiffriy Chandra — REPLACE with his actual Gmail address
-  // He is BOTH director AND employee for this prototype test
-  "jiffriychandra@gmail.com": { role:"director", name:"Jiffriy Chandra", company:"TA-HK", salary:4500, isAlsoEmployee:true },
-
-  // Add Eddie and Tsan if they want to test too:
-  // "eddie.wong@taprivatecapital.com": { role:"director", name:"Eddie Wong", company:"TA-HK", salary:0 },
-  // "tgan@taprivatecapital.com":  { role:"director", name:"Tsan Gan",   company:"TA-SG", salary:0 },
-
-  // ── EMPLOYEES ─────────────────────────────────────────────────────────────
-  // Test account for Jiffriy when his primary Gmail's iPhone OAuth is misbehaving
-  "chandrafamilyemail@gmail.com": { role:"employee", name:"Jiffriy Chandra (Test Acct)", company:"TA-HK", salary:0 },
+  // ── Approvers (Directors) — also Employees so they can submit their own expenses ──
+  "jchandra@taprivatecapital.com":    { role:"director", name:"Jiffriy Chandra", company:"TA-HK", salary:0, isAlsoEmployee:true },
+  "ewong@taprivatecapital.com":       { role:"director", name:"Eddie Wong",      company:"TA-HK", salary:0, isAlsoEmployee:true },
+  "tgan@taprivatecapital.com":        { role:"director", name:"Tsan Gan",        company:"TA-SG", salary:0, isAlsoEmployee:true },
 };
+
+// Mutable role map — admins manage via the Users console; persisted to Drive.
+const ROLES_STORAGE_KEY = "ta_capata_roles_v1";
+function loadRoles(){
+  try { const raw = localStorage.getItem(ROLES_STORAGE_KEY); if(raw){ const p = JSON.parse(raw); if(p && typeof p === "object") return p; } } catch(e){}
+  return JSON.parse(JSON.stringify(SEED_ROLE_MAP));
+}
+function saveRoles(){
+  try { localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(ROLE_MAP)); } catch(e){ console.warn("roles save failed:", e); }
+  if(typeof pushToDrive === "function") pushToDrive("roles");
+}
+let ROLE_MAP = loadRoles();
 
 // Scopes needed: identity + Drive file creation
 const GOOGLE_SCOPES = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive";
@@ -1141,6 +1148,43 @@ const HOME_CURRENCY_BY_COMPANY = {
   "TA-SG":  "SGD",
   "Capata": "SGD",
 };
+
+
+// ─── ENTITY ROUTING ─────────────────────────────────────────────────────────
+// Maps an admin to the entities they cover. SG admin gets TA-SG + Capata
+// (since Capata is the SG-based fintech subsidiary). Global admin sees all.
+const ADMIN_REGION_COVERAGE = {
+  "TA-HK":  ["TA-HK"],
+  "TA-SG":  ["TA-SG", "Capata"],
+  "Capata": ["TA-SG", "Capata"]   // safety: a Capata-tagged admin would also see SG
+};
+function getAdminCoverage(profile){
+  if(!profile) return [];
+  // Global admin sees every entity
+  if(profile.scope === "global") return ["TA-HK", "TA-SG", "Capata"];
+  return ADMIN_REGION_COVERAGE[profile.company] || [profile.company];
+}
+function adminCovers(profile, entity){
+  return getAdminCoverage(profile).includes(entity);
+}
+// Convenience: does the current admin cover the entity that this expense belongs to?
+function currentAdminCoversExpense(e){
+  if(!currentUser || currentUser.role !== "admin") return true; // non-admin users see their own filter
+  const submitter = ROLE_MAP[e.userId];
+  if(!submitter) return false;
+  return adminCovers(currentUser, submitter.company);
+}
+function currentAdminCoversBatch(b){
+  if(!currentUser || currentUser.role !== "admin") return true;
+  const submitter = ROLE_MAP[b.submitterId];
+  if(!submitter){
+    // Custom batches may have multiple submitters — scan items
+    const items = expensesInBatch(b);
+    return items.some(e => currentAdminCoversExpense(e));
+  }
+  return adminCovers(currentUser, submitter.company);
+}
+
 function getHomeCurrency(company){ return HOME_CURRENCY_BY_COMPANY[company] || "SGD"; }
 const CURRENCY_SYMBOL = {
   HKD:"HK$", SGD:"S$", USD:"US$", EUR:"€", GBP:"£", JPY:"¥",
@@ -1253,7 +1297,7 @@ function showToast(msg, type="ok") {
 function getInbox() {
   if(!currentUser) return [];
   const role = currentUser.role;
-  if(role==="admin") return expenses.filter(e=>["Submitted","AdminReviewed"].includes(e.status));
+  if(role==="admin") return expenses.filter(e=>["Submitted","AdminReviewed"].includes(e.status) && currentAdminCoversExpense(e));
   // Directors no longer see individual claims in inbox — they see batches via getMyBatches()
   if(role==="director") return expenses.filter(e=>e.status==="InBatch" && e.assignedDirectorId===currentUser.email);
   // employee — also handle isAlsoEmployee case
@@ -1608,6 +1652,7 @@ function renderNav() {
   ];
   // Show both Admin Inbox tab AND Director Inbox if isAlsoEmployee
   if(currentUser.role==="admin") tabs.push({id:"batches",icon:"📦",label:"Batches"});
+  if(currentUser.role==="admin") tabs.push({id:"users",icon:"👥",label:"Users"});
   tabs.push({id:"inbox",icon:"↓",label:currentUser.role==="employee"?"Alerts":"Inbox",badge:inbox.length});
 
   // Extra tab for director who is also employee
@@ -1629,6 +1674,7 @@ function renderScreen(s) {
     case"my-claims": renderClaims(true); break;
     case"inbox":     renderInbox(); break;
     case"batches":   renderBatches(); break;
+    case"users":     renderUsers(); break;
     case"detail":    renderDetail(); break;
     case"diagnostics": showDiagnostics(); break;
     case"submit":    resetForm(); break;
@@ -1743,7 +1789,7 @@ function renderInbox() {
   }).join("");
   // Admin quick-action: send all reviewed claims as a single batch
   if(currentUser.role === "admin"){
-    const reviewedReady = expenses.filter(e => e.status === "AdminReviewed" && !batches.flatMap(b=>b.expenseIds||[]).includes(e.id));
+    const reviewedReady = expenses.filter(e => e.status === "AdminReviewed" && !batches.flatMap(b=>b.expenseIds||[]).includes(e.id) && currentAdminCoversExpense(e));
     if(reviewedReady.length >= 1){
       const total = reviewedReady.reduce((s,e)=>s+homeAmt(e),0);
       const homeC = reviewedReady[0].homeCurrency || getHomeCurrency(currentUser.company);
@@ -2138,7 +2184,7 @@ function renderBatches() {
   }
   // Find reviewed expenses not yet in any batch
   const inSomeBatch = new Set(batches.flatMap(b => b.expenseIds || []));
-  const ready = expenses.filter(e => e.status === "AdminReviewed" && !inSomeBatch.has(e.id));
+  const ready = expenses.filter(e => e.status === "AdminReviewed" && !inSomeBatch.has(e.id) && currentAdminCoversExpense(e));
 
   // Group by submitter + trip label (auto-suggested batches)
   const groups = {};
@@ -2151,7 +2197,13 @@ function renderBatches() {
   });
 
   const homeC = getHomeCurrency(currentUser.company);
-  let html = `<div class="page-title">Batches</div>
+  // Show admin's coverage region
+  const coverageLabel = currentUser.role === "admin" 
+    ? (currentUser.scope === "global" 
+        ? '<span style="background:#fff7e0;color:#92660a;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;margin-left:10px;">Global</span>' 
+        : `<span style="background:${currentUser.company==='TA-HK'?'#fde8e8':'#e8f7ee'};color:${currentUser.company==='TA-HK'?'#991b1b':'#0a5c2e'};padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;margin-left:10px;">${esc(getAdminCoverage(currentUser).join(' + '))}</span>`)
+    : '';
+  let html = `<div class="page-title" style="display:flex;align-items:center;flex-wrap:wrap;">Batches${coverageLabel}</div>
     <p style="color:#888;font-size:12px;margin-bottom:16px;line-height:1.5;">Group reviewed expenses, send to a Director for one-shot approval.</p>`;
 
   // ─── READY TO BATCH section ───
@@ -2190,8 +2242,9 @@ function renderBatches() {
   }
 
   // ─── ACTIVE BATCHES (Pending — needs Eva's attention) ───
-  const activeBatches = batches.filter(b => b.status !== "Completed");
-  const completedBatches = batches.filter(b => b.status === "Completed");
+  // Filter by entity coverage so HK admin only sees HK batches, SG admin sees SG/Capata, Global sees all.
+  const activeBatches = batches.filter(b => b.status !== "Completed" && currentAdminCoversBatch(b));
+  const completedBatches = batches.filter(b => b.status === "Completed" && currentAdminCoversBatch(b));
   if(activeBatches.length > 0) {
     html += `<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 10px;font-weight:600;">Active Batches (${activeBatches.length})</div>`;
     activeBatches.slice().sort((a,b)=>(b.id||0)-(a.id||0)).forEach(b => {
@@ -2704,9 +2757,10 @@ function approveBatchSelective(batchId, approveChecked){
 // (mobile), and any other approved user see the same data.
 const SYNC_FILE_NAMES = {
   expenses: "ta_capata_expenses.json",
-  batches:  "ta_capata_batches.json"
+  batches:  "ta_capata_batches.json",
+  roles:    "ta_capata_roles.json"
 };
-const driveFileIds = { expenses: null, batches: null };
+const driveFileIds = { expenses: null, batches: null, roles: null };
 let _syncing = false;
 
 function setSyncBadge(state){
@@ -2897,6 +2951,25 @@ async function syncFromDrive(){
       await writeDriveJson("batches", batches);
       console.log("[Sync] Created new batches.json on Drive");
     }
+    // Roles — pull from Drive if exists, otherwise seed
+    f = await findDriveFile(SYNC_FILE_NAMES.roles);
+    if(f){
+      driveFileIds.roles = f.id;
+      const remote = await readDriveJson(f.id);
+      if(remote && typeof remote === "object" && !Array.isArray(remote)){
+        // Merge: take remote as base, then add any local-only entries
+        const merged = { ...remote };
+        for(const [email, profile] of Object.entries(ROLE_MAP)){
+          if(!merged[email]) merged[email] = profile;
+        }
+        ROLE_MAP = merged;
+        try { localStorage.setItem(ROLES_STORAGE_KEY, JSON.stringify(ROLE_MAP)); } catch(e){}
+        console.log(`[Sync] Loaded ${Object.keys(ROLE_MAP).length} user roles from Drive`);
+      }
+    } else {
+      await writeDriveJson("roles", ROLE_MAP);
+      console.log("[Sync] Created new roles.json on Drive");
+    }
     setSyncBadge("ok");
     if(currentScreen) renderScreen(currentScreen);
   } catch(err){
@@ -2930,7 +3003,7 @@ async function pushToDrive(key){
   try {
     while(true){
       _pushQueue[key].scheduled = false;
-      const data = key === "expenses" ? expenses : batches;
+      const data = key === "expenses" ? expenses : key === "batches" ? batches : ROLE_MAP;
       try {
         await writeDriveJson(key, data);
         console.log(`[Sync] Pushed ${key} to Drive (${(data||[]).length} items)`);
@@ -3505,70 +3578,6 @@ async function exportBatchPDFFull(){
 
 
 
-// ─── ADOBE SIGN HAND-OFF ────────────────────────────────────────────────────
-// Opens Adobe Acrobat Sign in a new tab. The Eva flow:
-//   1. App copies the Drive PDF link to clipboard for easy pasting
-//   2. Eva uploads the PDF to Adobe Sign
-//   3. Eva enters the Director's email + sends for signature
-// Adobe handles the rest of the workflow (email, signing, audit trail).
-async function sendBatchForESignature(){
-  if(!currentBatchId){ showToast("No batch open.","err"); return; }
-  const b = getBatch(currentBatchId);
-  if(!b){ showToast("Batch not found.","err"); return; }
-
-  // If we have the Drive PDF link, copy it to clipboard
-  if(b.pdfDriveUrl){
-    try {
-      await navigator.clipboard.writeText(b.pdfDriveUrl);
-      showToast("📋 Drive PDF link copied to clipboard.", "info");
-    } catch(e){ /* clipboard may not be available */ }
-  } else {
-    showToast("⚠ Generate the PDF first (📑 Export PDF + Receipts), then send for e-signature.", "err");
-    return;
-  }
-
-  // Build a mailto fallback in case Eva prefers email
-  const subject = encodeURIComponent(`Expense Reimbursement Batch — ${batchSubmitterName(b)} — Batch #${b.id}`);
-  const body = encodeURIComponent(
-`Dear Director,
-
-Please find attached the expense reimbursement batch for your approval and e-signature:
-
-Submitter: ${batchSubmitterName(b)}
-Trip: ${b.tripLabel || "—"}
-Total: ${fmtCcy(batchTotal(b), batchHomeCcy(b))}
-Items: ${(b.expenseIds||[]).length}
-
-PDF (with embedded receipts): ${b.pdfDriveUrl}
-
-Approval requested via Adobe Acrobat Sign.
-
-— TA & Capata Expense Manager`
-  );
-
-  // Show a small modal asking Eva to choose: Adobe web or email
-  showSimpleModal(`
-    <div style="background:#fff;color:#1a1a1a;border-radius:12px;padding:20px;max-width:480px;">
-      <div style="font-size:18px;font-weight:700;margin-bottom:8px;">Send for E-Signature</div>
-      <div style="font-size:12px;color:#4a5568;margin-bottom:16px;line-height:1.5;">
-        The PDF link has been copied to your clipboard. Choose how to send it for signing:
-      </div>
-      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:#4a5568;font-family:monospace;word-break:break-all;">
-        ${esc(b.pdfDriveUrl)}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <a href="https://acrobat.adobe.com/link/review?uri=${encodeURIComponent(b.pdfDriveUrl)}" target="_blank" onclick="closeSimpleModal()" style="background:#dc2626;color:#fff;text-decoration:none;text-align:center;padding:12px;border-radius:8px;font-weight:600;">📝 Open Adobe Acrobat Sign</a>
-        <a href="mailto:?subject=${subject}&body=${body}" onclick="closeSimpleModal()" style="background:#1a3a6a;color:#fff;text-decoration:none;text-align:center;padding:12px;border-radius:8px;font-weight:600;">✉ Email to Director</a>
-        <button onclick="closeSimpleModal()" style="background:#e5e7eb;color:#1a1a1a;border:none;padding:10px;border-radius:8px;font-weight:600;cursor:pointer;">Cancel</button>
-      </div>
-      <div style="font-size:11px;color:#6b7280;margin-top:14px;line-height:1.5;">
-        <strong>Adobe Sign flow:</strong> opens Adobe Acrobat in a new tab. Sign in with your Adobe ID, upload the PDF (open the Drive link first to download it), add the Director's email as recipient, and send for signature.
-      </div>
-    </div>
-  `);
-}
-
-
 // Mark a batch as completed (moves it off Eva's active queue).
 // Used after Eva downloads the PDF and/or sends it for e-signature externally.
 function markBatchCompleted(batchId){
@@ -3593,6 +3602,201 @@ function markBatchCompleted(batchId){
   closeBatchModal();
   showToast("✓ Batch marked completed.");
   if(currentScreen === "batches") renderBatches();
+}
+
+
+
+// ─── ADMIN USERS CONSOLE ────────────────────────────────────────────────────
+function renderUsers(){
+  if(!currentUser || currentUser.role !== "admin"){
+    document.getElementById("screen-users").innerHTML = `<div class="page-title">Users</div><p style="color:var(--text-secondary);">Admin only.</p>`;
+    return;
+  }
+
+  const userList = Object.entries(ROLE_MAP).sort((a,b) => {
+    // Sort: admin > director > employee, then by name
+    const order = { admin: 0, director: 1, employee: 2 };
+    const ra = order[a[1].role] ?? 3, rb = order[b[1].role] ?? 3;
+    if(ra !== rb) return ra - rb;
+    return (a[1].name || "").localeCompare(b[1].name || "");
+  });
+
+  const counts = { admin: 0, director: 0, employee: 0 };
+  userList.forEach(([_, p]) => counts[p.role] = (counts[p.role] || 0) + 1);
+
+  let html = `<div class="page-title">Users</div>
+    <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px;line-height:1.5;">
+      Manage who can sign in. Changes sync to Drive (other admins see updates on next sync).<br>
+      <strong style="color:#dc2626;">⚠ New users must also be added to Google Cloud Console → APIs &amp; Services → Audience → Test Users.</strong>
+    </p>
+
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+      <div style="flex:1;background:#fff7e0;border:1px solid #f0d088;border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#92660a;">${counts.admin || 0}</div>
+        <div style="font-size:10px;color:#92660a;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Admins</div>
+      </div>
+      <div style="flex:1;background:#f3edff;border:1px solid #d4c1f5;border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#5b21b6;">${counts.director || 0}</div>
+        <div style="font-size:10px;color:#5b21b6;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Directors</div>
+      </div>
+      <div style="flex:1;background:#e8f0fb;border:1px solid #c9d8eb;border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:#1e3a8a;">${counts.employee || 0}</div>
+        <div style="font-size:10px;color:#1e3a8a;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Employees</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:18px;">
+      <button class="btn-primary" style="background:#16a34a;flex:2;margin:0;" onclick="openUserForm()">+ Add User</button>
+      <button onclick="resetUsersToSeed()" title="Wipe all users and restore the official 6-user seed list" style="background:#fde8e8;color:#991b1b;border:1px solid #f0a0a0;border-radius:8px;padding:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:12px;">↻ Reset to defaults</button>
+    </div>
+
+    <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:8px;">All Users (${userList.length})</div>`;
+
+  userList.forEach(([email, p]) => {
+    const roleColors = { admin: "#92660a", director: "#5b21b6", employee: "#1e3a8a" };
+    const roleBg = { admin: "#fff7e0", director: "#f3edff", employee: "#e8f0fb" };
+    const roleColor = roleColors[p.role] || "#444";
+    const roleBgColor = roleBg[p.role] || "#f0f0f0";
+    const isMe = email === currentUser.email;
+    html += `<div style="background:var(--bg-card,#fff);border:1px solid var(--border,#e0e0e0);border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;color:var(--text-primary);font-size:13px;">${esc(p.name || "(no name)")}${isMe?' <span style="color:#16a34a;font-size:10px;">(you)</span>':""}</div>
+          <div style="font-size:11px;color:var(--text-secondary);word-break:break-all;margin-top:2px;">${esc(email)}</div>
+          <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">
+            <span style="background:${roleBgColor};color:${roleColor};padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;text-transform:capitalize;">${esc(p.role)}</span>
+            <span style="background:#f3f4f6;color:#4a5568;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;">${esc(p.company || "—")}</span>
+            ${p.salary > 0 ? `<span style="background:#f3f4f6;color:#4a5568;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;">${getHomeCurrency(p.company)} ${Number(p.salary).toLocaleString()}</span>` : ""}
+            ${p.isAlsoEmployee ? `<span style="background:#fff7e0;color:#92660a;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;">also Employee</span>` : ""}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+          <button onclick="openUserForm('${esc(email)}')" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Edit</button>
+          ${isMe ? "" : `<button onclick="deleteUser('${esc(email)}')" style="background:#fde8e8;color:#991b1b;border:1px solid #f0a0a0;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Delete</button>`}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById("screen-users").innerHTML = html;
+}
+
+// Open the add/edit user form (modal)
+function openUserForm(existingEmail){
+  const editing = !!existingEmail;
+  const u = editing ? ROLE_MAP[existingEmail] : { role:"employee", name:"", company:"TA-HK", salary:0 };
+
+  const modalHTML = `
+    <div style="background:#fff;color:#1a1a1a;border-radius:12px;padding:20px;max-width:480px;width:100%;">
+      <div style="font-size:18px;font-weight:700;margin-bottom:14px;">${editing ? "Edit User" : "Add New User"}</div>
+
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px;color:#4a5568;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Email *</div>
+        <input type="email" id="uf-email" value="${esc(existingEmail || "")}" ${editing ? "readonly disabled" : ""} placeholder="user@example.com" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:14px;background:${editing ? "#f3f4f6" : "#fff"};color:#1a1a1a;">
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px;color:#4a5568;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Full Name *</div>
+        <input type="text" id="uf-name" value="${esc(u.name || "")}" placeholder="Full Name" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:#1a1a1a;">
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#4a5568;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Role *</div>
+          <select id="uf-role" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:#1a1a1a;">
+            <option value="employee" ${u.role==="employee"?"selected":""}>Employee (submitter)</option>
+            <option value="director" ${u.role==="director"?"selected":""}>Director (approver)</option>
+            <option value="admin" ${u.role==="admin"?"selected":""}>Admin</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:#4a5568;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Entity *</div>
+          <select id="uf-company" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:#1a1a1a;">
+            <option value="TA-HK" ${u.company==="TA-HK"?"selected":""}>TA-HK (TransAsia HK)</option>
+            <option value="TA-SG" ${u.company==="TA-SG"?"selected":""}>TA-SG (TransAsia SG)</option>
+            <option value="Capata" ${u.company==="Capata"?"selected":""}>Capata Pte Ltd</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px;color:#4a5568;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Monthly Salary (home currency, 0 if not applicable)</div>
+        <input type="number" id="uf-salary" value="${u.salary || 0}" min="0" step="100" style="width:100%;padding:10px;border:1px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:14px;background:#fff;color:#1a1a1a;">
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#4a5568;cursor:pointer;">
+          <input type="checkbox" id="uf-also-emp" ${u.isAlsoEmployee?"checked":""}>
+          <span>Director who also submits expenses (rare — for working directors)</span>
+        </label>
+      </div>
+
+      <div style="background:#fff7e0;border:1px solid #f0d088;border-radius:8px;padding:10px;font-size:11px;color:#92660a;margin-bottom:14px;line-height:1.5;">
+        <strong>Reminder:</strong> ${editing ? "Email cannot be changed. Delete and re-add if needed." : "After adding, also add this email to Google Cloud Console → APIs & Services → Audience → Test Users, otherwise sign-in will be blocked."}
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeSimpleModal()" style="flex:1;background:#e5e7eb;color:#1a1a1a;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+        <button onclick="saveUserForm(${editing ? `'${esc(existingEmail)}'` : "null"})" style="flex:2;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:600;cursor:pointer;font-family:inherit;">${editing ? "Save Changes" : "+ Add User"}</button>
+      </div>
+    </div>`;
+  showSimpleModal(modalHTML);
+}
+
+function saveUserForm(existingEmail){
+  const email = (document.getElementById("uf-email").value || "").trim().toLowerCase();
+  const name  = (document.getElementById("uf-name").value || "").trim();
+  const role  = document.getElementById("uf-role").value;
+  const company = document.getElementById("uf-company").value;
+  const salary = parseFloat(document.getElementById("uf-salary").value || 0) || 0;
+  const isAlsoEmployee = document.getElementById("uf-also-emp").checked;
+
+  if(!email){ showToast("Email is required.","err"); return; }
+  if(!email.includes("@")){ showToast("Please enter a valid email.","err"); return; }
+  if(!name){ showToast("Name is required.","err"); return; }
+
+  // Adding new — check for duplicates
+  if(!existingEmail && ROLE_MAP[email]){
+    showToast(`${email} already exists. Use Edit instead.`, "err");
+    return;
+  }
+
+  ROLE_MAP[email] = { role, name, company, salary };
+  if(role === "director" && isAlsoEmployee) ROLE_MAP[email].isAlsoEmployee = true;
+
+  saveRoles();
+  closeSimpleModal();
+  showToast(existingEmail ? `✓ Updated ${name}.` : `✓ Added ${name} as ${role}.`);
+  renderUsers();
+}
+
+function deleteUser(email){
+  const u = ROLE_MAP[email];
+  if(!u) return;
+  if(email === currentUser.email){
+    showToast("You can't delete yourself.", "err");
+    return;
+  }
+  if(!confirm(`Delete ${u.name} (${email})?\n\nTheir existing expenses/batches will remain visible to other users, but they won't be able to sign in anymore.`)){
+    return;
+  }
+  delete ROLE_MAP[email];
+  saveRoles();
+  showToast(`✓ Deleted ${u.name}.`);
+  renderUsers();
+}
+
+
+
+// Reset roles to seed (purge any leftover test users like chandrafamilyemail / jiffriychandra@gmail.com)
+function resetUsersToSeed(){
+  if(!confirm("Reset users back to the official seed list?\n\nThis will REMOVE any users you've added through the console, and restore the 6 official users:\n  • Global Admin (taexpenseclaim@gmail.com)\n  • Eva Cheung (Admin TA-HK)\n  • Carla Soriano (Admin TA-SG)\n  • Jiffriy Chandra (Approver + TA-HK Employee)\n  • Eddie Wong (Approver + TA-HK Employee)\n  • Tsan Gan (Approver + TA-SG Employee)\n\nAre you sure?")){
+    return;
+  }
+  ROLE_MAP = JSON.parse(JSON.stringify(SEED_ROLE_MAP));
+  saveRoles();
+  showToast("✓ Users reset to defaults.");
+  renderUsers();
 }
 
 </script>
