@@ -657,6 +657,7 @@ body.light-mode .report-sub { color: #6b7280 !important; font-size: 11px; letter
         <div class="report-btns no-print" style="margin-top:8px;">
           <button id="batch-pdf-btn" onclick="exportBatchPDFFull()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">📑 Export &amp; Save (PDF + Receipts)</button>
           <button onclick="sendBatchForESignature()" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;" title="Send to Director via Adobe Sign">✍ Send for E-Signature</button>
+          <button id="mark-completed-btn" onclick="markBatchCompleted(currentBatchId)" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;" title="Mark this batch as completed — moves it off the active list">✓ Mark Completed</button>
           <button onclick="closeBatchModal()" style="background:transparent;color:#666;border:1px solid #ccc;border-radius:8px;width:36px;height:36px;font-size:14px;cursor:pointer;font-family:inherit;">✕</button>
         </div>
       </div>
@@ -738,6 +739,7 @@ const STATUS_META = {
   AdminReviewed: {bg:"#1a1500",fg:"#f0b429",bd:"#3a2e00",icon:"👁"},
   InBatch:       {bg:"#1a0f2e",fg:"#a78bfa",bd:"#3a1a6a",icon:"📦"},
   Approved:      {bg:"#0a1e12",fg:"#34d399",bd:"#0f3a20",icon:"✓"},
+  Completed:     {bg:"#0a1e2e",fg:"#60a5fa",bd:"#1a3a5a",icon:"✓"},
   Rejected:      {bg:"#1e0a0a",fg:"#f87171",bd:"#4a1010",icon:"✕"},
 };
 
@@ -2187,10 +2189,12 @@ function renderBatches() {
     });
   }
 
-  // ─── EXISTING BATCHES list ───
-  if(batches.length > 0) {
-    html += `<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 10px;font-weight:600;">All Batches (${batches.length})</div>`;
-    batches.slice().sort((a,b)=>(b.id||0)-(a.id||0)).forEach(b => {
+  // ─── ACTIVE BATCHES (Pending — needs Eva's attention) ───
+  const activeBatches = batches.filter(b => b.status !== "Completed");
+  const completedBatches = batches.filter(b => b.status === "Completed");
+  if(activeBatches.length > 0) {
+    html += `<div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;margin:24px 0 10px;font-weight:600;">Active Batches (${activeBatches.length})</div>`;
+    activeBatches.slice().sort((a,b)=>(b.id||0)-(a.id||0)).forEach(b => {
       const items = expensesInBatch(b);
       const total = items.reduce((s,e)=>s+homeAmt(e),0);
       const statusColor = b.status === "Approved" ? "#34d399" : b.status === "Rejected" ? "#f87171" : "#a78bfa";
@@ -2214,6 +2218,28 @@ function renderBatches() {
         </div>
       </div>`;
     });
+  }
+
+  // ─── COMPLETED BATCHES (collapsed by default) ───
+  if(completedBatches.length > 0) {
+    html += `<details style="margin:24px 0 10px;">
+      <summary style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;cursor:pointer;padding:6px 0;">▸ Completed Batches (${completedBatches.length}) — click to expand</summary>
+      <div style="margin-top:10px;opacity:0.75;">`;
+    completedBatches.slice().sort((a,b)=>(b.id||0)-(a.id||0)).forEach(b => {
+      const items = expensesInBatch(b);
+      const total = items.reduce((s,e)=>s+homeAmt(e),0);
+      const driveBadge = b.driveUrl ? `<span style="background:#0a3a20;color:#34d399;padding:2px 8px;border-radius:99px;font-size:10px;margin-left:6px;">📁 PDF on Drive</span>` : "";
+      html += `<div style="background:#0a1e2e;border:1px solid #1a3a5a;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;" onclick="openBatch(${b.id})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+          <div style="font-size:13px;font-weight:600;color:#fff;flex:1;">${esc(batchSubmitterName(b))}</div>
+          <span style="background:#60a5fa22;color:#60a5fa;padding:3px 10px;border-radius:99px;font-size:10px;font-weight:600;flex-shrink:0;">✓ Completed${b.completedAt ? " · " + b.completedAt : ""}</span>
+        </div>
+        <div style="font-size:11px;color:#aaa;margin-bottom:2px;">✈ ${esc(b.tripLabel || "(no trip)")}</div>
+        <div style="font-size:11px;color:#777;margin-bottom:6px;">${items.length} expense${items.length!==1?"s":""}${driveBadge}</div>
+        <div style="text-align:right;font-size:14px;font-weight:600;color:#60a5fa;">${fmtCcy(total, batchHomeCcy(b))}</div>
+      </div>`;
+    });
+    html += `</div></details>`;
   }
 
   document.getElementById("screen-batches").innerHTML = html;
@@ -3541,6 +3567,34 @@ Approval requested via Adobe Acrobat Sign.
     </div>
   `);
 }
+
+
+// Mark a batch as completed (moves it off Eva's active queue).
+// Used after Eva downloads the PDF and/or sends it for e-signature externally.
+function markBatchCompleted(batchId){
+  const b = getBatch(batchId);
+  if(!b) return;
+  if(b.status === "Completed"){
+    showToast("Already marked completed.", "info");
+    return;
+  }
+  if(!confirm("Mark batch as Completed? It will move off your active list. The PDF and receipts remain in Drive.")){
+    return;
+  }
+  b.status = "Completed";
+  b.completedAt = today();
+  // Cascade to underlying expenses so they drop out of "InBatch" pending state
+  expensesInBatch(b).forEach(e => {
+    e.status = "Completed";
+    e.history.push({actor: currentUser.name, action: "Batch marked completed by Admin", at: today()});
+  });
+  saveBatches();
+  saveExpenses();
+  closeBatchModal();
+  showToast("✓ Batch marked completed.");
+  if(currentScreen === "batches") renderBatches();
+}
+
 </script>
 </body>
 </html>
