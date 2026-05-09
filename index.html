@@ -600,8 +600,8 @@ body.light-mode .report-sub { color: #6b7280 !important; font-size: 11px; letter
       <div class="field"><div class="lbl">Notes / Purpose</div><textarea id="f-notes" rows="3" placeholder="Meeting purpose, attendees, breakdown…"></textarea></div>
       <div class="field">
         <div class="lbl">Receipt Photo</div>
-        <input type="file" id="f-file" accept="image/*" capture="environment" style="display:none;">
-        <div id="receipt-preview-area"><button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Tap to attach receipt</button></div>
+        <input type="file" id="f-file" accept="image/*" style="display:none;">  <!-- removed capture so iOS/Android show both Camera and Photo Library -->
+        <div id="receipt-preview-area"><button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Take photo or choose from gallery</button></div>
         <div id="drive-upload-status" style="display:none;margin-top:8px;font-size:11px;color:#f0b429;">📤 Will upload to Google Drive on submit…</div>
       </div>
       <button class="btn-primary" onclick="submitExpense()">Submit Claim →</button>
@@ -947,7 +947,7 @@ async function runOCROnImage(base64DataUrl){
     // Use OCR.space API — free tier with public test key, much better than Tesseract for receipts.
     // Upgrade path: register at https://ocr.space/ocrapi for your own free key (500 calls/day),
     // and replace OCR_API_KEY below with your key.
-    const OCR_API_KEY = "K81877234388957";  // Public free key — limited rate. Replace with yours for production.
+    const OCR_API_KEY = "helloworld";  // OCR.space free public key. For higher rate limits, register at https://ocr.space/ocrapi  // Public free key — limited rate. Replace with yours for production.
 
     const formData = new FormData();
     formData.append("base64Image", base64DataUrl);
@@ -1872,7 +1872,7 @@ function resetForm(){
       return `<option value="${c}"${c===defaultCcy?" selected":""}>${c}${tag}</option>`;
     }).join("");
   }
-  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Tap to attach receipt</button>`;
+  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Take photo or choose from gallery</button>`;
   document.getElementById("drive-upload-status").style.display="none";
 }
 
@@ -1885,12 +1885,11 @@ document.getElementById("f-file").addEventListener("change", function(){
       document.getElementById("receipt-preview-area").innerHTML = `
         <img src="${compressedDataUrl}" style="max-width:100%;border-radius:8px;display:block;">
         <div id="ocr-status" style="font-size:11px;margin-top:6px;text-align:center;"></div>
-        <button class="btn-upload" style="margin-top:8px;" onclick="document.getElementById('f-file').click()">📷 Replace receipt</button>
+        <button class="btn-upload" style="margin-top:8px;" onclick="document.getElementById('f-file').click()">📷 Replace (camera or gallery)</button>
       `;
       document.getElementById("drive-upload-status").style.display = "none";
-      // OCR is currently advisory only — log extracted text to console but don't auto-fill
-      // (free Tesseract.js receipt accuracy is poor; production needs Google Vision API)
-      // Uncomment runOCROnImage(compressedDataUrl) to re-enable auto-fill once a better API is wired in.
+      // Auto-extract vendor / amount / date / currency from the receipt photo
+      runOCROnImage(compressedDataUrl);
     });
   };
   reader.readAsDataURL(file);
@@ -1923,7 +1922,7 @@ function compressImage(dataUrl, maxWidth, quality){
 
 function clearReceipt(){
   document.getElementById("f-file").value="";
-  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Tap to attach receipt</button>`;
+  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Take photo or choose from gallery</button>`;
   document.getElementById("drive-upload-status").style.display="none";
 }
 
