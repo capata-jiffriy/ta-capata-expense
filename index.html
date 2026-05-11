@@ -2019,24 +2019,72 @@ function resetForm(){
       return `<option value="${c}"${c===defaultCcy?" selected":""}>${c}${tag}</option>`;
     }).join("");
   }
-  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Take photo or choose from gallery</button>`;
+  resetReceiptPages();
+  renderReceiptPreview();
   document.getElementById("drive-upload-status").style.display="none";
+}
+
+// ─── MULTI-PAGE RECEIPT STATE ──────────────────────────────────────────────
+// Each submission can have multiple pages. Page 1 fills the legacy `receipt`
+// and `driveUrl` fields; additional pages stored on `e.receiptPages` array.
+let currentReceiptPages = [];  // [{ dataUrl: string }]
+
+function resetReceiptPages(){
+  currentReceiptPages = [];
+}
+
+function addReceiptPage(dataUrl){
+  currentReceiptPages.push({ dataUrl });
+  renderReceiptPreview();
+}
+
+function removeReceiptPage(idx){
+  currentReceiptPages.splice(idx, 1);
+  renderReceiptPreview();
+}
+
+function renderReceiptPreview(){
+  const area = document.getElementById("receipt-preview-area");
+  if(!area) return;
+  if(currentReceiptPages.length === 0){
+    area.innerHTML = `<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Take photo or choose from gallery</button>`;
+    return;
+  }
+
+  // Build thumbnail grid + add/replace buttons
+  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(110px, 1fr));gap:8px;margin-bottom:10px;">`;
+  currentReceiptPages.forEach((p, i) => {
+    html += `<div style="position:relative;background:var(--bg-input,#f0f0f0);border:1px solid var(--border,#e0e0e0);border-radius:8px;overflow:hidden;aspect-ratio:3/4;">
+      <img src="${p.dataUrl}" style="width:100%;height:100%;object-fit:cover;display:block;" alt="Page ${i+1}">
+      <div style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:600;padding:2px 6px;border-radius:99px;">P${i+1}</div>
+      <button onclick="removeReceiptPage(${i})" style="position:absolute;top:4px;right:4px;background:rgba(220,38,38,.95);color:#fff;border:none;border-radius:99px;width:22px;height:22px;font-size:12px;cursor:pointer;font-family:inherit;line-height:1;">✕</button>
+    </div>`;
+  });
+  html += `</div>
+    <div id="ocr-status" style="font-size:11px;margin-top:6px;text-align:center;"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn-upload" style="flex:1;" onclick="document.getElementById('f-file').click()">+ Add another page</button>
+      <button onclick="resetReceiptPages();renderReceiptPreview();" style="background:#fde8e8;color:#991b1b;border:1px solid #f0a0a0;border-radius:8px;padding:10px 14px;font-family:inherit;font-weight:600;font-size:12px;cursor:pointer;">Replace all</button>
+    </div>`;
+  area.innerHTML = html;
 }
 
 document.getElementById("f-file").addEventListener("change", function(){
   const file=this.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=ev=>{
-    // Compress + downscale to JPEG to keep storage and uploads fast
-    compressImage(ev.target.result, 1200, 0.82).then(compressedDataUrl => {
-      document.getElementById("receipt-preview-area").innerHTML = `
-        <img src="${compressedDataUrl}" style="max-width:100%;border-radius:8px;display:block;">
-        <div id="ocr-status" style="font-size:11px;margin-top:6px;text-align:center;"></div>
-        <button class="btn-upload" style="margin-top:8px;" onclick="document.getElementById('f-file').click()">📷 Replace (camera or gallery)</button>
-      `;
-      document.getElementById("drive-upload-status").style.display = "none";
-      // Auto-extract vendor / amount / date / currency from the receipt photo
-      runOCROnImage(compressedDataUrl);
+    // Show crop UI first so user can isolate the receipt before OCR runs
+    showCropModal(ev.target.result).then(croppedDataUrl => {
+      // Compress the cropped result
+      compressImage(croppedDataUrl, 1200, 0.82).then(compressedDataUrl => {
+        const isFirstPage = currentReceiptPages.length === 0;
+        addReceiptPage(compressedDataUrl);
+        document.getElementById("drive-upload-status").style.display = "none";
+        // OCR runs only on the first page (subsequent pages are usually continuation)
+        if(isFirstPage) runOCROnImage(compressedDataUrl);
+        // Allow another upload after this one completes
+        document.getElementById("f-file").value = "";  // reset so same file can be reselected
+      });
     });
   };
   reader.readAsDataURL(file);
@@ -2069,7 +2117,8 @@ function compressImage(dataUrl, maxWidth, quality){
 
 function clearReceipt(){
   document.getElementById("f-file").value="";
-  document.getElementById("receipt-preview-area").innerHTML=`<button class="btn-upload" onclick="document.getElementById('f-file').click()">📷 Take photo or choose from gallery</button>`;
+  resetReceiptPages();
+  renderReceiptPreview();
   document.getElementById("drive-upload-status").style.display="none";
 }
 
@@ -2080,10 +2129,11 @@ async function submitExpense(){
   const date=document.getElementById("f-date").value;
   if(!title||!cat||!amt||!date){alert("Please fill in all required fields.");return;}
 
-  const img=document.querySelector("#receipt-preview-area img");
+  const pages = currentReceiptPages.slice(); // snapshot
+  const hasReceipt = pages.length > 0;
   const expId=Date.now();
   const safeName=title.replace(/[^a-zA-Z0-9]/g,"_").slice(0,40);
-  const fileName=`${date}_${cat.replace(/[^a-zA-Z]/g,"")}_${currentUser.name.replace(/ /g,"")}_${safeName}.jpg`;
+  const baseFileName = `${date}_${cat.replace(/[^a-zA-Z]/g,"")}_${currentUser.name.replace(/ /g,"")}_${safeName}`;
 
   const tripLabelVal = document.getElementById("f-trip").value.trim();
   const ccySel = document.getElementById("f-currency");
@@ -2098,7 +2148,9 @@ async function submitExpense(){
     exchangeRate: (ccy===homeC) ? 1 : null,
     homeAmount:   (ccy===homeC) ? amt : null,
     rateDate:     (ccy===homeC) ? today() : null,
-    status:"Submitted", receipt:img?img.src:null, driveUrl:null,
+    status:"Submitted", receipt: hasReceipt ? pages[0].dataUrl : null, driveUrl:null,
+    receiptPages: [],  // populated after upload — array of { driveUrl }
+    pageCount: pages.length,
     notes:document.getElementById("f-notes").value.trim(),
     tripLabel:tripLabelVal,
     history:[{actor:currentUser.name,action:`Submitted (${fmtCcy(amt,ccy)})`,at:today()}],
@@ -2108,24 +2160,39 @@ async function submitExpense(){
   rememberTrip(tripLabelVal);
   rememberCurrency(ccy);
 
-  // Upload receipt to Google Drive if connected
-  if(img && googleAccessToken && isDriveConfigured){
-    showToast("📤 Uploading receipt to Drive…","info");
+  // Upload all receipt pages to Google Drive if connected
+  if(hasReceipt && googleAccessToken && isDriveConfigured){
+    const totalPages = pages.length;
+    if(totalPages === 1){
+      showToast("📤 Uploading receipt to Drive…","info");
+    } else {
+      showToast(`📤 Uploading ${totalPages} pages to Drive…`,"info");
+    }
     updateDriveBar("busy");
-    try {
-      const driveUrl = await uploadReceiptToDrive(img.src, fileName);
-      newExp.driveUrl = driveUrl;
-      newExp.receipt = null; // free memory — file is on Drive
-      newExp.history.push({actor:"System",action:`Receipt saved to Google Drive: ${fileName}`,at:today()});
+    const uploaded = [];
+    for(let i = 0; i < totalPages; i++){
+      const pageNum = i + 1;
+      const fName = totalPages === 1 ? `${baseFileName}.jpg` : `${baseFileName}_p${pageNum}.jpg`;
+      try {
+        const url = await uploadReceiptToDrive(pages[i].dataUrl, fName);
+        uploaded.push({ driveUrl: url, page: pageNum, fileName: fName });
+      } catch(err){
+        console.error(`Drive upload error for page ${pageNum}:`, err);
+      }
+    }
+    if(uploaded.length){
+      newExp.driveUrl = uploaded[0].driveUrl;  // primary = first page
+      newExp.receipt = null;                     // free memory
+      newExp.receiptPages = uploaded;
+      newExp.history.push({actor:"System",action:`${uploaded.length} receipt page${uploaded.length>1?"s":""} saved to Google Drive`,at:today()});
       updateDriveBar("ok");
-      showToast("✅ Claim submitted & receipt saved to Drive!");
-    } catch(err){
-      console.error("Drive upload error:", err);
+      showToast(`✅ Claim submitted & ${uploaded.length} page${uploaded.length>1?"s":""} saved to Drive!`);
+    } else {
       updateDriveBar("ok");
-      showToast("Claim submitted. Receipt upload failed — saved locally.","err");
+      showToast("Claim submitted but no pages uploaded — saved locally.","err");
     }
   } else {
-    showToast("Claim submitted!"+(img&&!googleAccessToken?" (receipt stored locally — connect Drive to upload)":""));
+    showToast("Claim submitted!"+(hasReceipt&&!googleAccessToken?" (receipt stored locally — connect Drive to upload)":""));
   }
   // If user submitted with a trip label, keep them on the Submit form so they
   // can add another expense for the same trip without navigating. Otherwise
@@ -3444,13 +3511,32 @@ async function exportBatchPDFFull(){
     doc.text("Signature & Date", margin, y);
     doc.setTextColor(0);
 
-    // ─── RECEIPT PAGES — multiple per page with reference labels ───
-    const receiptItems = itemsWithRef.filter(e => e.driveUrl);
-    if(receiptItems.length > 0){
-      showToast("📄 Embedding " + receiptItems.length + " receipts…","info");
+    // ─── RECEIPT PAGES — supports multi-page receipts (Ref R1 page 1 of 2, etc.) ───
+    // Build a flat list of pages with metadata: [{ exp, pageRef, pageIdx, totalPages, fileId }]
+    const allPages = [];
+    itemsWithRef.forEach(e => {
+      // Multi-page: use receiptPages array if present and populated
+      const pages = (e.receiptPages && e.receiptPages.length)
+        ? e.receiptPages.map(p => p.driveUrl)
+        : (e.driveUrl ? [e.driveUrl] : []);
+      pages.forEach((url, i) => {
+        const fileId = fileIdFromLink(url);
+        if(!fileId) return;
+        allPages.push({
+          exp: e,
+          fileId,
+          driveUrl: url,
+          pageIdx: i + 1,
+          totalPages: pages.length,
+          ref: e._ref + (pages.length > 1 ? (" Pg " + (i+1) + "/" + pages.length) : "")
+        });
+      });
+    });
 
-      // Layout: 2 receipts per A4 portrait page (stacked vertically).
-      // Each slot has a header band with reference + claim summary, then the receipt image fitted.
+    if(allPages.length > 0){
+      showToast("📄 Embedding " + allPages.length + " receipt page" + (allPages.length!==1?"s":"") + "…", "info");
+
+      // Layout: 2 pages per A4 portrait sheet (stacked vertically).
       const RECEIPTS_PER_PAGE = 2;
       const slotHeight = (pageH - margin * 2 - 40) / RECEIPTS_PER_PAGE;
       const headerH = 30;
@@ -3458,9 +3544,8 @@ async function exportBatchPDFFull(){
       const imgW = contentW;
 
       let receiptCount = 0;
-      let posOnPage = 0;  // 0 = top half, 1 = bottom half
+      let posOnPage = 0;
 
-      // Page header for the receipts section
       doc.addPage();
       doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0);
       doc.text("RECEIPTS — Batch #" + b.id, margin, margin);
@@ -3469,63 +3554,58 @@ async function exportBatchPDFFull(){
       doc.setTextColor(0);
       let topOffset = margin + 30;
 
-      for(const e of receiptItems){
-        const fileId = fileIdFromLink(e.driveUrl);
-        if(!fileId) continue;
-
-        // Compute slot Y position
+      for(let pIdx = 0; pIdx < allPages.length; pIdx++){
+        const pg = allPages[pIdx];
+        const e = pg.exp;
         const slotY = topOffset + (posOnPage * slotHeight);
 
         try {
-          const blob = await fetchDriveFileBlob(fileId);
+          const blob = await fetchDriveFileBlob(pg.fileId);
           const dataUrl = await blobToDataURL(blob);
           const img = new Image();
-          await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-            img.src = dataUrl;
-          });
+          await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
 
-          // Slot header — large reference number + claim metadata
+          // Slot header — bold ref# + page label + claim metadata
           doc.setFillColor(245, 245, 245);
           doc.rect(margin, slotY, contentW, headerH, "F");
           doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(0);
           doc.text(e._ref, margin + 10, slotY + 20);
-          doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-          doc.text((e.title || "Untitled").slice(0, 50), margin + 50, slotY + 14);
+          // If multi-page, show "Page X of Y" as a sub-label
+          if(pg.totalPages > 1){
+            doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80);
+            doc.text(`Page ${pg.pageIdx} of ${pg.totalPages}`, margin + 10, slotY + 26);
+          }
+          doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(0);
+          doc.text((e.title || "Untitled").slice(0, 48), margin + 60, slotY + 14);
           doc.setTextColor(80); doc.setFontSize(8);
-          doc.text(`${e.date || ""} · ${e.category || ""} · ${fmtCcy(e.amount, e.currency || homeC)}`, margin + 50, slotY + 25);
+          doc.text(`${e.date || ""} · ${e.category || ""} · ${fmtCcy(e.amount, e.currency || homeC)}`, margin + 60, slotY + 25);
           doc.setTextColor(0);
 
-          // Image — scale to fit slot (preserving aspect ratio)
+          // Image fit
           const fmt = dataUrl.startsWith("data:image/png") ? "PNG" : "JPEG";
-          let dW = img.width;
-          let dH = img.height;
+          let dW = img.width, dH = img.height;
           const scale = Math.min(imgW / dW, imgH / dH);
           dW *= scale; dH *= scale;
           const dX = margin + (contentW - dW) / 2;
           const dY = slotY + headerH + 5;
           doc.addImage(dataUrl, fmt, dX, dY, dW, dH);
 
-          // Slot border
           doc.setDrawColor(220);
           doc.rect(margin, slotY, contentW, slotHeight - 5);
           doc.setDrawColor(0);
 
           receiptCount++;
         } catch(err){
-          console.error("[PDF] Failed to embed receipt for " + e._ref + ":", err);
-          // Show error placeholder for this slot
+          console.error("[PDF] Failed to embed " + pg.ref + ":", err);
           doc.setFillColor(255, 240, 240);
           doc.rect(margin, slotY, contentW, slotHeight - 5, "F");
           doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(150, 0, 0);
-          doc.text(e._ref + " — failed to load receipt", margin + 10, slotY + 30);
+          doc.text(pg.ref + " — failed to load", margin + 10, slotY + 30);
           doc.setTextColor(0);
         }
 
         posOnPage++;
-        if(posOnPage >= RECEIPTS_PER_PAGE && receiptItems.indexOf(e) < receiptItems.length - 1){
-          // Add new page for next receipts
+        if(posOnPage >= RECEIPTS_PER_PAGE && pIdx < allPages.length - 1){
           doc.addPage();
           doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(0);
           doc.text("RECEIPTS — Batch #" + b.id + " (continued)", margin, margin);
@@ -3545,7 +3625,7 @@ async function exportBatchPDFFull(){
     a.href = url; a.download = fileName; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
 
-    showToast(`✅ PDF ready — ${items.length} expenses, ${receiptItems.length} receipts (2 per page).`);
+    showToast(`✅ PDF ready — ${items.length} expenses, ${allPages.length} receipt page${allPages.length!==1?"s":""}.`);
 
     // Save to Drive
     if(googleAccessToken && GOOGLE_CONFIG.salaryReportsFolderId){
@@ -3797,6 +3877,117 @@ function resetUsersToSeed(){
   saveRoles();
   showToast("✓ Users reset to defaults.");
   renderUsers();
+}
+
+
+
+// ─── RECEIPT CROP UI (Cropper.js) ──────────────────────────────────────────
+// Lazy-load cropper.js from CDN on first use. Shows a modal where user can
+// crop their photo to just the receipt before OCR runs.
+
+let _cropperLoading = null;
+function loadCropper(){
+  if(window.Cropper) return Promise.resolve(window.Cropper);
+  if(_cropperLoading) return _cropperLoading;
+  _cropperLoading = new Promise((resolve, reject) => {
+    // CSS
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css";
+    document.head.appendChild(css);
+    // JS
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js";
+    sc.onload = () => { console.log("[Cropper] loaded"); resolve(window.Cropper); };
+    sc.onerror = () => reject(new Error("Cropper.js load failed"));
+    document.head.appendChild(sc);
+  });
+  return _cropperLoading;
+}
+
+// Show modal with the photo, let user crop. Resolves with cropped data URL
+// (or the original if user taps "Skip Crop").
+function showCropModal(dataUrl){
+  return new Promise(async (resolve) => {
+    try { await loadCropper(); } catch(e){
+      console.warn("Cropper.js failed to load — skipping crop:", e);
+      resolve(dataUrl);
+      return;
+    }
+
+    // Build modal
+    const modal = document.createElement("div");
+    modal.id = "crop-modal";
+    modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;padding:env(safe-area-inset-top,16px) 16px env(safe-area-inset-bottom,16px);";
+    modal.innerHTML = `
+      <div style="font-family:Inter,sans-serif;color:#fff;font-size:14px;font-weight:600;text-align:center;margin-bottom:8px;">
+        Crop the receipt
+      </div>
+      <div style="font-family:Inter,sans-serif;color:#aaa;font-size:11px;text-align:center;margin-bottom:12px;">
+        Drag corners or sides to isolate just the receipt — improves OCR accuracy.
+      </div>
+      <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;border-radius:8px;overflow:hidden;">
+        <img id="crop-image" src="${dataUrl}" style="max-width:100%;max-height:100%;display:block;">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-shrink:0;">
+        <button id="crop-skip-btn" style="flex:1;background:#374151;color:#fff;border:none;border-radius:8px;padding:14px;font-family:Inter,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Skip Crop</button>
+        <button id="crop-rotate-btn" style="background:#374151;color:#fff;border:none;border-radius:8px;padding:14px 16px;font-family:Inter,sans-serif;font-size:14px;font-weight:600;cursor:pointer;" title="Rotate 90°">↻</button>
+        <button id="crop-apply-btn" style="flex:2;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:14px;font-family:Inter,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Crop &amp; Continue ✓</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const img = document.getElementById("crop-image");
+    // Wait for image natural size to be ready
+    await new Promise(r => { if(img.complete) r(); else img.onload = r; });
+
+    // Initialize Cropper
+    const cropper = new Cropper(img, {
+      viewMode: 1,
+      dragMode: "move",
+      autoCropArea: 0.92,    // start with the crop box covering most of the image
+      background: false,
+      responsive: true,
+      rotatable: true,
+      zoomable: true,
+      scalable: false,
+      cropBoxResizable: true,
+      cropBoxMovable: true,
+      toggleDragModeOnDblclick: false
+    });
+
+    const cleanup = () => {
+      try { cropper.destroy(); } catch(e){}
+      modal.remove();
+    };
+
+    document.getElementById("crop-skip-btn").onclick = () => {
+      cleanup();
+      resolve(dataUrl);  // user chose to skip — use original
+    };
+    document.getElementById("crop-rotate-btn").onclick = () => {
+      cropper.rotate(90);
+    };
+    document.getElementById("crop-apply-btn").onclick = () => {
+      // Get cropped canvas — limit max dimensions to keep size reasonable
+      const canvas = cropper.getCroppedCanvas({
+        maxWidth: 2000,
+        maxHeight: 2000,
+        fillColor: "#fff",
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: "high"
+      });
+      if(!canvas){
+        showToast("Crop failed — using original.","err");
+        cleanup();
+        resolve(dataUrl);
+        return;
+      }
+      const cropped = canvas.toDataURL("image/jpeg", 0.92);
+      cleanup();
+      resolve(cropped);
+    };
+  });
 }
 
 </script>
