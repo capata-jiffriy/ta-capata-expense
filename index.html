@@ -2129,8 +2129,14 @@ async function submitExpense(){
   const date=document.getElementById("f-date").value;
   if(!title||!cat||!amt||!date){alert("Please fill in all required fields.");return;}
 
-  const pages = currentReceiptPages.slice(); // snapshot
+  const pages = currentReceiptPages.slice(); // snapshot the photos for this claim
   const hasReceipt = pages.length > 0;
+  // CLEAR the global pages array IMMEDIATELY so the next photo the user takes
+  // goes into a fresh array — not into this claim's already-snapshotted pages.
+  // (Previously this only happened in resetForm at the END of submit, causing
+  // a race where photos taken during async upload would get wiped.)
+  currentReceiptPages = [];
+  renderReceiptPreview();   // form now shows empty preview, ready for next claim
   const expId=Date.now();
   const safeName=title.replace(/[^a-zA-Z0-9]/g,"_").slice(0,40);
   const baseFileName = `${date}_${cat.replace(/[^a-zA-Z]/g,"")}_${currentUser.name.replace(/ /g,"")}_${safeName}`;
@@ -2198,7 +2204,15 @@ async function submitExpense(){
   // can add another expense for the same trip without navigating. Otherwise
   // go to the claims list as before.
   if(tripLabelVal && (currentUser.role==="employee" || currentUser.isAlsoEmployee)) {
-    resetForm();  // clears vendor/amount/notes; trip label re-populates from getLastTrip
+    // Don't blow away the next claim if user already started adding photos to it
+    const userAlreadyStartedNext = currentReceiptPages.length > 0
+      || (document.getElementById("f-title")||{}).value
+      || (document.getElementById("f-amount")||{}).value;
+    if(!userAlreadyStartedNext) {
+      resetForm();  // safe to fully reset
+    } else {
+      // Just show a confirmation toast without disturbing the new claim
+    }
     showToast("✅ Saved. Add another expense for this trip below.","info");
   } else {
     goTo(currentUser.isAlsoEmployee ? "my-claims" : "claims");
