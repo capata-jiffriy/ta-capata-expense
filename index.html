@@ -1677,7 +1677,7 @@ function renderScreen(s) {
     case"users":     renderUsers(); break;
     case"detail":    renderDetail(); break;
     case"diagnostics": showDiagnostics(); break;
-    case"submit":    resetForm(); break;
+    case"submit":    if(!isSubmitFormDirty()) resetForm(); break;
   }
 }
 
@@ -2043,6 +2043,18 @@ function removeReceiptPage(idx){
   renderReceiptPreview();
 }
 
+
+
+// Returns true if the user has any in-progress work on the Submit form —
+// uploaded photos, typed vendor/amount, etc. Used by renderScreen('submit')
+// to avoid wiping in-progress state when the screen re-renders (e.g., after
+// a focus-triggered auto-sync).
+function isSubmitFormDirty(){
+  if((typeof currentReceiptPages !== "undefined") && currentReceiptPages.length > 0) return true;
+  const v = id => (document.getElementById(id) || {}).value || "";
+  return !!(v("f-title") || v("f-amount") || v("f-notes"));
+}
+
 function renderReceiptPreview(){
   const area = document.getElementById("receipt-preview-area");
   if(!area) return;
@@ -2239,6 +2251,19 @@ async function uploadReceiptToDrive(base64DataUrl, fileName){
   });
   if(!uploadRes.ok) throw new Error("Drive upload failed: "+uploadRes.status);
   const data=await uploadRes.json();
+  // CRITICAL: Set "Anyone with link" reader permission on the uploaded receipt
+  // so that Drive's thumbnail endpoint can serve it to OTHER users (admins viewing
+  // claims from employees, directors reviewing batches, PDF embed fetch, etc.).
+  // Without this, the receipt is only visible to its uploader.
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${data.id}/permissions`, {
+      method: "POST",
+      headers: { Authorization: "Bearer "+googleAccessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "reader", type: "anyone" })
+    });
+  } catch(e){
+    console.warn("[Drive] Failed to set receipt permission (admin may need to share manually):", e);
+  }
   return data.webViewLink;
 }
 
@@ -3289,6 +3314,12 @@ let _lastSyncAt = 0;
 const AUTO_SYNC_COOLDOWN_MS = 30 * 1000;  // don't auto-sync more than every 30s
 function maybeAutoSync(){
   if(!googleAccessToken) return;
+  // Skip auto-sync if the user is actively working on the submit form —
+  // pulling fresh data and re-rendering would wipe their in-progress work.
+  if(currentScreen === "submit" && isSubmitFormDirty()){
+    console.log("[Sync] Skipping auto-sync — user is mid-submission");
+    return;
+  }
   const now = Date.now();
   if(now - _lastSyncAt < AUTO_SYNC_COOLDOWN_MS) return;
   _lastSyncAt = now;
@@ -4002,6 +4033,40 @@ function showCropModal(dataUrl){
       resolve(cropped);
     };
   });
+}
+
+
+
+// One-shot retroactive fix for receipts that were uploaded before the
+// Anyone-with-link permission was added. Run from F12 console:
+//   fixExistingReceiptPermissions()
+async function fixExistingReceiptPermissions(){
+  if(!googleAccessToken){ alert("Sign in first."); return; }
+  const folderId = GOOGLE_CONFIG.receiptsFolderId || GOOGLE_CONFIG.driveFolderId;
+  if(!folderId){ alert("No receipts folder configured."); return; }
+  console.log("[FixPerms] Listing files in folder " + folderId + "…");
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1000`, {
+    headers: { Authorization: "Bearer "+googleAccessToken }
+  });
+  if(!res.ok){ alert("Failed to list: HTTP "+res.status); return; }
+  const data = await res.json();
+  const files = data.files || [];
+  console.log(`[FixPerms] Found ${files.length} files. Setting Anyone-with-Link reader permission on each…`);
+  let success = 0, fail = 0;
+  for(const f of files){
+    try {
+      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/permissions`, {
+        method: "POST",
+        headers: { Authorization: "Bearer "+googleAccessToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "reader", type: "anyone" })
+      });
+      if(r.ok) success++; else fail++;
+    } catch(e){ fail++; }
+  }
+  const msg = `Done. ${success} permission(s) set successfully, ${fail} failed.`;
+  console.log("[FixPerms] " + msg);
+  alert(msg);
 }
 
 </script>
