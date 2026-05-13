@@ -87,6 +87,12 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 .receipt-preview{margin-top:10px;border:1px dashed var(--border-strong);border-radius:10px;padding:10px;text-align:center;background:var(--bg-input);}
 .receipt-preview img{max-width:100%;max-height:200px;border-radius:8px;}
 .receipt-preview .filename{color:var(--text-2);font-size:12px;margin-top:6px;word-break:break-all;}
+.page-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;}
+.page-tile{position:relative;border-radius:10px;overflow:hidden;background:var(--bg-input);border:1px solid var(--border);aspect-ratio:3/4;}
+.page-tile img{width:100%;height:100%;object-fit:cover;display:block;}
+.page-tile .pg-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.7);color:var(--gold);font-size:10px;font-weight:600;padding:2px 6px;border-radius:99px;}
+.page-tile .pg-rm{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.8);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:none;cursor:pointer;}
+.badge-pages{display:inline-block;background:rgba(201,169,110,.15);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;font-weight:600;}
 
 /* Filter chips */
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin:0 -18px 12px;padding:0 18px 8px;}
@@ -261,13 +267,19 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     <label class="lbl">Notes (optional)</label>
     <textarea id="f-notes" placeholder="Anything the reviewer should know..."></textarea>
 
-    <label class="lbl">Receipt photo <span style="color:var(--red);">*</span></label>
-    <input id="f-receipt" type="file" accept="image/*" capture="environment" onchange="onReceiptSelected(event)">
-    <div id="receipt-preview" class="receipt-preview" style="display:none;">
-      <img id="receipt-img">
-      <div class="filename" id="receipt-name"></div>
-      <button class="btn-sm btn btn-ghost" style="margin-top:8px;" onclick="clearReceipt()">Remove</button>
+    <label class="lbl">Receipt photo(s) <span style="color:var(--red);">*</span> <span style="text-transform:none;letter-spacing:0;color:var(--text-3);font-weight:400;">— multi-page OK</span></label>
+    <input id="f-receipt" type="file" accept="image/*" capture="environment" multiple onchange="onReceiptSelected(event)">
+    <div id="receipt-pages" style="display:none;margin-top:10px;"></div>
+    <div id="add-page-row" style="display:none;margin-top:10px;display:flex;gap:8px;">
+      <label for="f-receipt-more" class="btn btn-sm" style="flex:1;border:1px dashed var(--border-strong);background:transparent;justify-content:center;cursor:pointer;">
+        ➕ Add another page
+      </label>
+      <input id="f-receipt-more" type="file" accept="image/*" capture="environment" multiple onchange="onReceiptSelected(event)" style="display:none;">
+      <button class="btn btn-sm" id="ai-fill-btn" type="button" onclick="manualAutoFill()" style="flex:1;background:rgba(201,169,110,.08);border:1px solid rgba(201,169,110,.4);color:var(--gold);">
+        🪄 Auto-fill from receipt
+      </button>
     </div>
+    <div id="ai-fill-status" style="display:none;margin-top:8px;font-size:12px;color:var(--text-2);text-align:center;"></div>
 
     <button class="btn btn-gold" style="margin-top:24px;" onclick="saveClaim()">
       Save Claim
@@ -284,9 +296,10 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
       <div class="profile-row"><div class="k">Email</div><div class="v" id="p-email">—</div></div>
       <div class="profile-row"><div class="k">Company</div><div class="v" id="p-company">—</div></div>
       <div class="profile-row"><div class="k">Admin email</div><div class="v" id="p-admin">—</div></div>
+      <div class="profile-row"><div class="k">AI Vision</div><div class="v" id="p-ai">Not set</div></div>
     </div>
 
-    <button class="btn" style="margin-bottom:10px;" onclick="editProfile()">✏️ Edit profile</button>
+    <button class="btn" style="margin-bottom:10px;" onclick="editProfile()">✏️ Edit profile &amp; AI key</button>
     <button class="btn" style="margin-bottom:10px;" onclick="exportData()">📦 Export data (JSON backup)</button>
     <button class="btn btn-danger" onclick="confirmClearAll()">🗑 Clear all claims</button>
 
@@ -353,6 +366,15 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     <label class="lbl">Admin email</label>
     <input id="e-admin" type="email">
 
+    <label class="lbl" style="margin-top:18px;">AI Vision API key <span style="text-transform:none;letter-spacing:0;color:var(--text-3);font-weight:400;">(optional, for auto-fill)</span></label>
+    <input id="e-aikey" type="password" placeholder="sk-... (OpenAI) or sk-ant-... (Anthropic)" autocomplete="off" spellcheck="false">
+    <div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5;">
+      Paste a key from either:<br>
+      • OpenAI: <span style="color:var(--gold);">platform.openai.com/api-keys</span> (starts <code>sk-</code>)<br>
+      • Anthropic: <span style="color:var(--gold);">console.anthropic.com</span> (starts <code>sk-ant-</code>)<br>
+      Key is stored only on this device. Used to read receipt photos and fill the form automatically.
+    </div>
+
     <button class="btn btn-gold" style="margin-top:18px;" onclick="saveProfile()">Save</button>
     <button class="btn btn-ghost" style="margin-top:8px;" onclick="closeModal('edit-modal')">Cancel</button>
   </div>
@@ -365,9 +387,11 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 const STORAGE_KEYS = { profile:'ta_expense_profile', claims:'ta_expense_claims' };
 let profile = null;
 let claims = [];
-let pendingReceipt = null;        // { dataUrl, name }
+let pendingPages = [];            // [{ dataUrl, name }] — receipt pages for the in-progress claim
 let reportSelection = new Set();  // claim IDs selected for report
 let activeTripFilter = 'ALL';
+let _autoFillDone = false;        // ensure AI fill runs once per claim
+const MAX_PAGES = 10;
 
 // ─── INIT ─────────────────────────────────────────────────────────────────
 function init() {
@@ -412,6 +436,14 @@ function storageSet(k, v) {
 function loadState() {
   try { profile = JSON.parse(storageGet(STORAGE_KEYS.profile) || 'null'); } catch(e){ profile = null; }
   try { claims = JSON.parse(storageGet(STORAGE_KEYS.claims) || '[]'); } catch(e){ claims = []; }
+  // Migrate legacy single-photo claims → receipts: [...]
+  let migrated = false;
+  claims = claims.map(c => {
+    if (c.receipt && !c.receipts) { migrated = true; return { ...c, receipts: [c.receipt], receipt: undefined }; }
+    if (!c.receipts) { return { ...c, receipts: [] }; }
+    return c;
+  });
+  if (migrated) saveClaimsToStorage();
 }
 function saveProfileToStorage() { return storageSet(STORAGE_KEYS.profile, JSON.stringify(profile)); }
 function saveClaimsToStorage() { return storageSet(STORAGE_KEYS.claims, JSON.stringify(claims)); }
@@ -462,6 +494,16 @@ function renderAll() {
   document.getElementById('p-email').textContent = profile.email;
   document.getElementById('p-company').textContent = profile.company;
   document.getElementById('p-admin').textContent = profile.adminEmail;
+  const aiEl = document.getElementById('p-ai');
+  if (aiEl) {
+    const key = profile.aiKey || '';
+    const provider = detectProvider(key);
+    aiEl.textContent = provider ? (provider === 'anthropic' ? 'Anthropic ✓' : 'OpenAI ✓') : 'Not set';
+    aiEl.style.color = provider ? 'var(--green)' : 'var(--text-2)';
+  }
+  // Hide auto-fill button if no key is set
+  const aiBtn = document.getElementById('ai-fill-btn');
+  if (aiBtn) aiBtn.style.display = (profile.aiKey ? '' : 'none');
   renderClaims();
 }
 
@@ -512,7 +554,10 @@ function renderClaims() {
 
 function claimRowHTML(c) {
   const catIcon = { Travel:'✈️', Accommodation:'🏨', Meals:'🍽', 'Client Entertainment':'🥂', Transport:'🚕', 'Office Supplies':'📎', Communication:'📱', Other:'📌' }[c.category] || '📌';
-  const thumb = c.receipt ? `<img src="${c.receipt}">` : catIcon;
+  const firstReceipt = (c.receipts && c.receipts[0]) || c.receipt;
+  const pageCount = (c.receipts && c.receipts.length) || (c.receipt ? 1 : 0);
+  const thumb = firstReceipt ? `<img src="${firstReceipt}">` : catIcon;
+  const pageBadge = pageCount > 1 ? `<span class="badge-pages">${pageCount} pages</span>` : '';
   const statusPill = c.status === 'Submitted'
     ? '<span class="status-pill status-submitted">Submitted</span>'
     : '<span class="status-pill status-draft">Draft</span>';
@@ -527,7 +572,7 @@ function claimRowHTML(c) {
           <span>· ${c.category}</span>
           ${tripLabel}
         </div>
-        <div style="margin-top:6px;">${statusPill}</div>
+        <div style="margin-top:6px;">${statusPill}${pageBadge}</div>
       </div>
       <div class="claim-amount">${c.currency} ${c.amount.toFixed(2)}</div>
     </div>`;
@@ -550,28 +595,233 @@ function viewClaim(id) {
 
 // ─── SUBMIT FORM ──────────────────────────────────────────────────────────
 async function onReceiptSelected(ev) {
-  const file = ev.target.files[0];
-  if (!file) return;
-  if (!file.type.startsWith('image/')) {
-    toast('Please choose an image file','error');
-    return;
+  const files = Array.from(ev.target.files || []);
+  if (!files.length) return;
+  const wasEmpty = pendingPages.length === 0;
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    if (pendingPages.length >= MAX_PAGES) {
+      toast('Max ' + MAX_PAGES + ' pages per claim', 'error');
+      break;
+    }
+    try {
+      const compressed = await compressImage(file);
+      pendingPages.push({ dataUrl: compressed, name: file.name });
+    } catch(e) {
+      console.error(e);
+      toast('Could not read ' + file.name, 'error');
+    }
   }
-  try {
-    const compressed = await compressImage(file);
-    pendingReceipt = { dataUrl: compressed, name: file.name };
-    document.getElementById('receipt-img').src = compressed;
-    document.getElementById('receipt-name').textContent = file.name + ' (' + Math.round(compressed.length/1024) + ' KB)';
-    document.getElementById('receipt-preview').style.display = 'block';
-  } catch(e) {
-    console.error(e);
-    toast('Could not read image','error');
+  // Clear the input value so re-selecting the same file works
+  ev.target.value = '';
+  renderReceiptPages();
+
+  // Auto-trigger AI vision on first page added to a fresh claim
+  if (wasEmpty && pendingPages.length > 0 && !_autoFillDone) {
+    autoFillFromReceipt();
   }
 }
 
-function clearReceipt() {
-  pendingReceipt = null;
+function renderReceiptPages() {
+  const wrap = document.getElementById('receipt-pages');
+  const addRow = document.getElementById('add-page-row');
+  if (pendingPages.length === 0) {
+    wrap.style.display = 'none';
+    addRow.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  addRow.style.display = 'flex';
+  wrap.innerHTML = '<div class="page-grid">' + pendingPages.map((p,i) =>
+    `<div class="page-tile">
+       <div class="pg-num">Page ${i+1}</div>
+       <button class="pg-rm" type="button" onclick="removePage(${i})" aria-label="Remove page ${i+1}">×</button>
+       <img src="${p.dataUrl}" alt="Receipt page ${i+1}">
+     </div>`
+  ).join('') + '</div>' +
+  `<div style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:right;">${pendingPages.length} page${pendingPages.length===1?'':'s'} attached</div>`;
+}
+
+function removePage(i) {
+  pendingPages.splice(i, 1);
+  renderReceiptPages();
+  if (pendingPages.length === 0) _autoFillDone = false;
+}
+
+function clearReceipts() {
+  pendingPages = [];
+  _autoFillDone = false;
   document.getElementById('f-receipt').value = '';
-  document.getElementById('receipt-preview').style.display = 'none';
+  const more = document.getElementById('f-receipt-more'); if (more) more.value = '';
+  renderReceiptPages();
+  const st = document.getElementById('ai-fill-status'); if (st) st.style.display = 'none';
+}
+
+// ─── AI VISION AUTO-FILL ──────────────────────────────────────────────────
+function detectProvider(key) {
+  if (!key) return null;
+  const k = String(key).trim();
+  if (k.startsWith('sk-ant-')) return 'anthropic';
+  if (k.startsWith('sk-')) return 'openai';
+  return null;
+}
+
+function setAiStatus(msg, color) {
+  const el = document.getElementById('ai-fill-status');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.color = color || 'var(--text-2)';
+}
+
+async function manualAutoFill() {
+  _autoFillDone = false;
+  await autoFillFromReceipt();
+}
+
+async function autoFillFromReceipt() {
+  if (_autoFillDone) return;
+  if (pendingPages.length === 0) return;
+  const key = profile && profile.aiKey;
+  if (!key) { setAiStatus('Paste an API key in Profile to enable auto-fill','var(--text-2)'); return; }
+  const provider = detectProvider(key);
+  if (!provider) { setAiStatus('Invalid API key format','var(--red)'); return; }
+
+  _autoFillDone = true;
+  setAiStatus('🪄 Reading receipt with AI…','var(--gold)');
+  try {
+    const parsed = await callVisionAPI(provider, key, pendingPages[0].dataUrl);
+    if (!parsed) { setAiStatus('Could not parse receipt','var(--red)'); _autoFillDone = false; return; }
+    applyAutoFill(parsed);
+    setAiStatus('✓ Auto-filled — please verify the values','var(--green)');
+  } catch(e) {
+    console.error('AI fill failed:', e);
+    setAiStatus('AI error: ' + (e.message || 'unknown') + ' — fill manually','var(--red)');
+    _autoFillDone = false;
+  }
+}
+
+// Only fill fields the user hasn't already filled
+function applyAutoFill(p) {
+  const setIfEmpty = (id, v) => {
+    if (v == null || v === '') return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!el.value || el.value === '' || (id === 'f-date' && el.value === new Date().toISOString().slice(0,10))) {
+      el.value = v;
+    }
+  };
+  // Title: prefer parsed title; fall back to merchant
+  const title = p.title || p.merchant || '';
+  setIfEmpty('f-title', title);
+  if (p.amount != null && !isNaN(Number(p.amount))) setIfEmpty('f-amount', Number(p.amount).toFixed(2));
+  if (p.date) setIfEmpty('f-date', String(p.date).slice(0,10));
+  if (p.currency) {
+    const cur = String(p.currency).toUpperCase();
+    const sel = document.getElementById('f-currency');
+    if (sel && Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
+  }
+  if (p.category) {
+    const validCats = ['Travel','Accommodation','Meals','Client Entertainment','Transport','Office Supplies','Communication','Other'];
+    const cat = validCats.find(v => v.toLowerCase() === String(p.category).toLowerCase()) || null;
+    if (cat) document.getElementById('f-category').value = cat;
+  }
+  if (p.notes) {
+    const el = document.getElementById('f-notes');
+    if (el && !el.value) el.value = String(p.notes).slice(0,200);
+  }
+}
+
+const VISION_PROMPT = `You are an expense receipt parser. Look at this receipt image and extract structured data.
+
+Return ONLY valid JSON, no markdown fences, no commentary. Schema:
+{
+  "title": "Brief description: merchant + what was purchased (3-8 words)",
+  "merchant": "Merchant or vendor name",
+  "amount": <number — the TOTAL paid (incl. tax/tip)>,
+  "currency": "ISO 4217: SGD, HKD, USD, MYR, IDR, THB, JPY, CNY, EUR, GBP",
+  "date": "YYYY-MM-DD",
+  "category": "ONE of: Travel | Accommodation | Meals | Client Entertainment | Transport | Office Supplies | Communication | Other",
+  "notes": "Anything notable, max 100 chars, or empty string"
+}
+
+Use null for fields you can't determine. Pick the category that best fits — restaurants/cafés = Meals; taxis/Grab/Uber/MRT = Transport; flights/trains = Travel; hotels = Accommodation; SIM/data/phone = Communication; pens/paper = Office Supplies; group dinners with clients = Client Entertainment.`;
+
+async function callVisionAPI(provider, key, dataUrl) {
+  // Strip "data:image/...;base64," prefix for Anthropic
+  const m = dataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+  const mediaType = m ? m[1] : 'image/jpeg';
+  const b64 = m ? m[2] : dataUrl;
+
+  let resp, raw;
+  if (provider === 'anthropic') {
+    resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{
+          role:'user',
+          content:[
+            { type:'image', source:{ type:'base64', media_type: mediaType, data: b64 } },
+            { type:'text', text: VISION_PROMPT },
+          ],
+        }],
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error('Anthropic ' + resp.status + ': ' + err.slice(0,200));
+    }
+    const j = await resp.json();
+    raw = (j.content && j.content[0] && j.content[0].text) || '';
+  } else {
+    // OpenAI
+    resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer ' + key,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 500,
+        response_format: { type:'json_object' },
+        messages: [{
+          role:'user',
+          content:[
+            { type:'text', text: VISION_PROMPT },
+            { type:'image_url', image_url:{ url: dataUrl } },
+          ],
+        }],
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error('OpenAI ' + resp.status + ': ' + err.slice(0,200));
+    }
+    const j = await resp.json();
+    raw = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  }
+
+  // Extract JSON from raw response (sometimes wrapped in fences)
+  let jsonStr = raw.trim();
+  const fence = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fence) jsonStr = fence[1];
+  const braceStart = jsonStr.indexOf('{');
+  const braceEnd = jsonStr.lastIndexOf('}');
+  if (braceStart >= 0 && braceEnd > braceStart) jsonStr = jsonStr.slice(braceStart, braceEnd + 1);
+  try { return JSON.parse(jsonStr); }
+  catch(e) {
+    console.warn('Could not parse AI JSON. Raw:', raw);
+    return null;
+  }
 }
 
 // Compress to max 1600px wide, JPEG 0.75
@@ -605,7 +855,7 @@ function saveClaim() {
   if (!title) return toast('Please enter a title','error');
   if (!amount || amount <= 0) return toast('Please enter a valid amount','error');
   if (!date) return toast('Please select a date','error');
-  if (!pendingReceipt) return toast('Please attach a receipt photo','error');
+  if (pendingPages.length === 0) return toast('Please attach at least one receipt page','error');
 
   const claim = {
     id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -616,27 +866,26 @@ function saveClaim() {
     currency: document.getElementById('f-currency').value,
     date,
     notes: document.getElementById('f-notes').value.trim(),
-    receipt: pendingReceipt.dataUrl,
-    receiptName: pendingReceipt.name,
+    receipts: pendingPages.map(p => p.dataUrl),
+    receiptNames: pendingPages.map(p => p.name),
     status: 'Draft',
     createdAt: new Date().toISOString(),
   };
 
-  // Storage size check
+  // Storage size check via wrapped storageSet
   const newClaims = [...claims, claim];
-  try {
-    localStorage.setItem(STORAGE_KEYS.claims, JSON.stringify(newClaims));
-    claims = newClaims;
-  } catch(e) {
+  const res = storageSet(STORAGE_KEYS.claims, JSON.stringify(newClaims));
+  if (!res.ok) {
     toast('Storage full — generate a report and clear old claims','error');
     return;
   }
+  claims = newClaims;
 
   // Reset form
   document.getElementById('f-title').value = '';
   document.getElementById('f-amount').value = '';
   document.getElementById('f-notes').value = '';
-  clearReceipt();
+  clearReceipts();
   toast('Claim saved','success');
   goTo('claims');
 }
@@ -796,55 +1045,77 @@ async function generatePDF() {
       },
     });
 
-    // ── Pages 3+: One per receipt ──────────────────────────────────
+    // ── Pages 3+: One PDF page per receipt page ───────────────────
     for (let i = 0; i < selected.length; i++) {
       const c = selected[i];
-      doc.addPage();
-      doc.setTextColor(0,0,0);
-      doc.setFont('helvetica','bold').setFontSize(12);
-      doc.text(`Receipt ${i+1} of ${selected.length}`, 20, 18);
-      doc.setFont('helvetica','normal').setFontSize(10);
-      doc.setTextColor(120,120,120);
-      doc.text(profile.name + ' · ' + profile.company, pageW - 20, 18, { align:'right' });
+      const pages = (c.receipts && c.receipts.length) ? c.receipts : (c.receipt ? [c.receipt] : []);
+      const totalPages = pages.length || 1;
 
-      // Details box
-      doc.setTextColor(0,0,0);
-      doc.setFont('helvetica','bold').setFontSize(11);
-      doc.text(c.title, 20, 30);
-      doc.setFont('helvetica','normal').setFontSize(10);
-      let yy = 38;
-      const det = (k,v) => {
-        doc.setFont('helvetica','bold'); doc.text(k+':', 20, yy);
-        doc.setFont('helvetica','normal'); doc.text(String(v), 50, yy);
-        yy += 6;
-      };
-      det('Date', c.date);
-      det('Category', c.category);
-      det('Amount', `${c.currency} ${c.amount.toFixed(2)}`);
-      if (c.trip) det('Trip', c.trip);
-      if (c.notes) {
-        doc.setFont('helvetica','bold'); doc.text('Notes:', 20, yy);
-        doc.setFont('helvetica','normal');
-        const noteLines = doc.splitTextToSize(c.notes, pageW - 70);
-        doc.text(noteLines, 50, yy);
-        yy += noteLines.length * 5 + 1;
-      }
+      for (let pgIdx = 0; pgIdx < Math.max(1, pages.length); pgIdx++) {
+        doc.addPage();
+        doc.setTextColor(0,0,0);
+        doc.setFont('helvetica','bold').setFontSize(12);
+        const pageLabel = totalPages > 1
+          ? `Receipt ${i+1} of ${selected.length}  ·  page ${pgIdx+1} of ${totalPages}`
+          : `Receipt ${i+1} of ${selected.length}`;
+        doc.text(pageLabel, 20, 18);
+        doc.setFont('helvetica','normal').setFontSize(10);
+        doc.setTextColor(120,120,120);
+        doc.text(profile.name + ' · ' + profile.company, pageW - 20, 18, { align:'right' });
 
-      // Receipt image — fit into remaining space
-      try {
-        const imgY = yy + 6;
-        const maxImgH = pageH - imgY - 20;
-        const maxImgW = pageW - 40;
-        // Use jsPDF's getImageProperties to compute aspect ratio
-        const props = doc.getImageProperties(c.receipt);
-        let imgW = maxImgW, imgH = (props.height / props.width) * maxImgW;
-        if (imgH > maxImgH) { imgH = maxImgH; imgW = (props.width / props.height) * maxImgH; }
-        const imgX = (pageW - imgW) / 2;
-        doc.addImage(c.receipt, 'JPEG', imgX, imgY, imgW, imgH);
-      } catch(e) {
-        console.warn('Image embed failed for', c.id, e);
-        doc.setFont('helvetica','italic').setFontSize(10).setTextColor(180,0,0);
-        doc.text('(Receipt image could not be embedded)', 20, yy + 10);
+        let yy;
+        if (pgIdx === 0) {
+          // First page of this claim — show claim details
+          doc.setTextColor(0,0,0);
+          doc.setFont('helvetica','bold').setFontSize(11);
+          doc.text(c.title, 20, 30);
+          doc.setFont('helvetica','normal').setFontSize(10);
+          yy = 38;
+          const det = (k,v) => {
+            doc.setFont('helvetica','bold'); doc.text(k+':', 20, yy);
+            doc.setFont('helvetica','normal'); doc.text(String(v), 50, yy);
+            yy += 6;
+          };
+          det('Date', c.date);
+          det('Category', c.category);
+          det('Amount', `${c.currency} ${c.amount.toFixed(2)}`);
+          if (c.trip) det('Trip', c.trip);
+          if (c.notes) {
+            doc.setFont('helvetica','bold'); doc.text('Notes:', 20, yy);
+            doc.setFont('helvetica','normal');
+            const noteLines = doc.splitTextToSize(c.notes, pageW - 70);
+            doc.text(noteLines, 50, yy);
+            yy += noteLines.length * 5 + 1;
+          }
+        } else {
+          // Continuation page — just a small header line, then image
+          yy = 24;
+          doc.setFont('helvetica','italic').setFontSize(10).setTextColor(120,120,120);
+          doc.text(`(continued: ${c.title})`, 20, yy);
+          doc.setTextColor(0,0,0);
+        }
+
+        // Receipt image
+        const imgData = pages[pgIdx];
+        if (imgData) {
+          try {
+            const imgY = yy + 6;
+            const maxImgH = pageH - imgY - 20;
+            const maxImgW = pageW - 40;
+            const props = doc.getImageProperties(imgData);
+            let imgW = maxImgW, imgH = (props.height / props.width) * maxImgW;
+            if (imgH > maxImgH) { imgH = maxImgH; imgW = (props.width / props.height) * maxImgH; }
+            const imgX = (pageW - imgW) / 2;
+            doc.addImage(imgData, 'JPEG', imgX, imgY, imgW, imgH);
+          } catch(e) {
+            console.warn('Image embed failed for', c.id, 'page', pgIdx, e);
+            doc.setFont('helvetica','italic').setFontSize(10).setTextColor(180,0,0);
+            doc.text('(Receipt image could not be embedded)', 20, yy + 10);
+          }
+        } else {
+          doc.setFont('helvetica','italic').setFontSize(10).setTextColor(180,0,0);
+          doc.text('(No receipt image attached)', 20, yy + 10);
+        }
       }
     }
 
@@ -888,6 +1159,7 @@ function editProfile() {
   document.getElementById('e-email').value = profile.email;
   document.getElementById('e-company').value = profile.company;
   document.getElementById('e-admin').value = profile.adminEmail;
+  document.getElementById('e-aikey').value = profile.aiKey || '';
   document.getElementById('edit-modal').classList.add('show');
 }
 function saveProfile() {
@@ -895,8 +1167,9 @@ function saveProfile() {
   const email = document.getElementById('e-email').value.trim();
   const company = document.getElementById('e-company').value;
   const adminEmail = document.getElementById('e-admin').value.trim();
-  if (!name || !email || !company || !adminEmail) return toast('All fields required','error');
-  profile = { ...profile, name, email, company, adminEmail };
+  const aiKey = document.getElementById('e-aikey').value.trim();
+  if (!name || !email || !company || !adminEmail) return toast('All fields except AI key required','error');
+  profile = { ...profile, name, email, company, adminEmail, aiKey: aiKey || null };
   saveProfileToStorage();
   closeModal('edit-modal');
   renderAll();
