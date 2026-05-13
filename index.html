@@ -270,16 +270,24 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     <label class="lbl">Receipt photo(s) <span style="color:var(--red);">*</span> <span style="text-transform:none;letter-spacing:0;color:var(--text-3);font-weight:400;">— multi-page OK</span></label>
     <input id="f-receipt" type="file" accept="image/*" capture="environment" multiple onchange="onReceiptSelected(event)">
     <div id="receipt-pages" style="display:none;margin-top:10px;"></div>
-    <div id="add-page-row" style="display:none;margin-top:10px;display:flex;gap:8px;">
-      <label for="f-receipt-more" class="btn btn-sm" style="flex:1;border:1px dashed var(--border-strong);background:transparent;justify-content:center;cursor:pointer;">
+    <div id="add-page-row" style="display:none;margin-top:10px;">
+      <label for="f-receipt-more" class="btn" style="border:1px dashed var(--border-strong);background:transparent;justify-content:center;cursor:pointer;">
         ➕ Add another page
       </label>
       <input id="f-receipt-more" type="file" accept="image/*" capture="environment" multiple onchange="onReceiptSelected(event)" style="display:none;">
-      <button class="btn btn-sm" id="ai-fill-btn" type="button" onclick="manualAutoFill()" style="flex:1;background:rgba(201,169,110,.08);border:1px solid rgba(201,169,110,.4);color:var(--gold);">
-        🪄 Auto-fill from receipt
-      </button>
     </div>
-    <div id="ai-fill-status" style="display:none;margin-top:8px;font-size:12px;color:var(--text-2);text-align:center;"></div>
+
+    <!-- AI auto-fill — appears once at least one page is attached -->
+    <div id="ai-fill-row" style="display:none;margin-top:14px;">
+      <button class="btn" id="ai-fill-btn" type="button" onclick="manualAutoFill()"
+        style="background:linear-gradient(180deg,rgba(201,169,110,.18),rgba(201,169,110,.06));border:1px solid var(--gold);color:var(--gold);font-weight:600;">
+        🪄 Done — Read receipt with AI
+      </button>
+      <div id="ai-fill-hint" style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:center;">
+        Tap when all pages are attached. AI will fill the form for you.
+      </div>
+    </div>
+    <div id="ai-fill-status" style="display:none;margin-top:10px;padding:10px;border-radius:8px;font-size:13px;text-align:center;background:var(--bg-elev);"></div>
 
     <button class="btn btn-gold" style="margin-top:24px;" onclick="saveClaim()">
       Save Claim
@@ -501,9 +509,8 @@ function renderAll() {
     aiEl.textContent = provider ? (provider === 'anthropic' ? 'Anthropic ✓' : 'OpenAI ✓') : 'Not set';
     aiEl.style.color = provider ? 'var(--green)' : 'var(--text-2)';
   }
-  // Hide auto-fill button if no key is set
-  const aiBtn = document.getElementById('ai-fill-btn');
-  if (aiBtn) aiBtn.style.display = (profile.aiKey ? '' : 'none');
+  // AI row visibility is now managed by renderReceiptPages() — it shows even
+  // without a key so the user is prompted to set one.
   renderClaims();
 }
 
@@ -597,7 +604,6 @@ function viewClaim(id) {
 async function onReceiptSelected(ev) {
   const files = Array.from(ev.target.files || []);
   if (!files.length) return;
-  const wasEmpty = pendingPages.length === 0;
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue;
     if (pendingPages.length >= MAX_PAGES) {
@@ -612,26 +618,28 @@ async function onReceiptSelected(ev) {
       toast('Could not read ' + file.name, 'error');
     }
   }
+  // Reset _autoFillDone whenever new pages are added so user can re-run AI
+  _autoFillDone = false;
   // Clear the input value so re-selecting the same file works
   ev.target.value = '';
   renderReceiptPages();
-
-  // Auto-trigger AI vision on first page added to a fresh claim
-  if (wasEmpty && pendingPages.length > 0 && !_autoFillDone) {
-    autoFillFromReceipt();
-  }
 }
 
 function renderReceiptPages() {
   const wrap = document.getElementById('receipt-pages');
   const addRow = document.getElementById('add-page-row');
+  const aiRow = document.getElementById('ai-fill-row');
+  const aiBtn = document.getElementById('ai-fill-btn');
+  const aiHint = document.getElementById('ai-fill-hint');
   if (pendingPages.length === 0) {
     wrap.style.display = 'none';
     addRow.style.display = 'none';
+    if (aiRow) aiRow.style.display = 'none';
+    const stat = document.getElementById('ai-fill-status'); if (stat) stat.style.display = 'none';
     return;
   }
   wrap.style.display = 'block';
-  addRow.style.display = 'flex';
+  addRow.style.display = 'block';
   wrap.innerHTML = '<div class="page-grid">' + pendingPages.map((p,i) =>
     `<div class="page-tile">
        <div class="pg-num">Page ${i+1}</div>
@@ -640,6 +648,23 @@ function renderReceiptPages() {
      </div>`
   ).join('') + '</div>' +
   `<div style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:right;">${pendingPages.length} page${pendingPages.length===1?'':'s'} attached</div>`;
+
+  // Show the AI row whenever we have pages — even with no key, so user is prompted to set it up
+  if (aiRow && aiBtn && aiHint) {
+    aiRow.style.display = 'block';
+    const hasKey = profile && profile.aiKey;
+    if (hasKey) {
+      aiBtn.disabled = false;
+      aiBtn.style.opacity = '1';
+      aiBtn.innerHTML = `🪄 Done — Read ${pendingPages.length} page${pendingPages.length===1?'':'s'} with AI`;
+      aiHint.textContent = 'Tap when all pages are attached. AI will fill the form for you.';
+    } else {
+      aiBtn.disabled = true;
+      aiBtn.style.opacity = '.55';
+      aiBtn.innerHTML = '🪄 AI auto-fill (set up in Profile)';
+      aiHint.innerHTML = 'No API key set. Go to <strong>Profile → Edit profile</strong> and paste your Anthropic or OpenAI key to enable AI auto-fill.';
+    }
+  }
 }
 
 function removePage(i) {
@@ -670,8 +695,17 @@ function setAiStatus(msg, color) {
   const el = document.getElementById('ai-fill-status');
   if (!el) return;
   el.style.display = 'block';
-  el.textContent = msg;
+  el.innerHTML = msg;
   el.style.color = color || 'var(--text-2)';
+  // Match background to status colour
+  const bg = {
+    'var(--gold)':   'rgba(201,169,110,.08)',
+    'var(--green)':  'rgba(52,211,153,.10)',
+    'var(--red)':    'rgba(248,113,113,.10)',
+    'var(--amber)':  'rgba(251,191,36,.10)',
+  }[color] || 'var(--bg-elev)';
+  el.style.background = bg;
+  el.style.border = '1px solid ' + (color === 'var(--text-2)' ? 'var(--border)' : color);
 }
 
 async function manualAutoFill() {
@@ -683,21 +717,30 @@ async function autoFillFromReceipt() {
   if (_autoFillDone) return;
   if (pendingPages.length === 0) return;
   const key = profile && profile.aiKey;
-  if (!key) { setAiStatus('Paste an API key in Profile to enable auto-fill','var(--text-2)'); return; }
+  if (!key) {
+    setAiStatus('No API key set — go to Profile → Edit profile to paste one','var(--amber)');
+    return;
+  }
   const provider = detectProvider(key);
-  if (!provider) { setAiStatus('Invalid API key format','var(--red)'); return; }
+  if (!provider) { setAiStatus('Invalid API key format (must start sk- or sk-ant-)','var(--red)'); return; }
 
   _autoFillDone = true;
-  setAiStatus('🪄 Reading receipt with AI…','var(--gold)');
+  const btn = document.getElementById('ai-fill-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Reading…'; }
+  // Cap at 3 pages to keep cost and latency reasonable
+  const pagesToSend = pendingPages.slice(0, 3).map(p => p.dataUrl);
+  setAiStatus('🪄 Reading ' + pagesToSend.length + ' page' + (pagesToSend.length===1?'':'s') + ' with ' + (provider==='anthropic'?'Claude':'OpenAI') + '…', 'var(--gold)');
   try {
-    const parsed = await callVisionAPI(provider, key, pendingPages[0].dataUrl);
-    if (!parsed) { setAiStatus('Could not parse receipt','var(--red)'); _autoFillDone = false; return; }
+    const parsed = await callVisionAPI(provider, key, pagesToSend);
+    if (!parsed) { setAiStatus('Could not parse the AI response — fill manually','var(--red)'); _autoFillDone = false; if (btn) { btn.disabled = false; } renderReceiptPages(); return; }
     applyAutoFill(parsed);
-    setAiStatus('✓ Auto-filled — please verify the values','var(--green)');
+    setAiStatus('✓ Auto-filled — please review values before saving','var(--green)');
+    if (btn) { btn.disabled = false; btn.innerHTML = '🪄 Re-run AI'; }
   } catch(e) {
     console.error('AI fill failed:', e);
     setAiStatus('AI error: ' + (e.message || 'unknown') + ' — fill manually','var(--red)');
     _autoFillDone = false;
+    if (btn) { btn.disabled = false; renderReceiptPages(); }
   }
 }
 
@@ -747,14 +790,23 @@ Return ONLY valid JSON, no markdown fences, no commentary. Schema:
 
 Use null for fields you can't determine. Pick the category that best fits — restaurants/cafés = Meals; taxis/Grab/Uber/MRT = Transport; flights/trains = Travel; hotels = Accommodation; SIM/data/phone = Communication; pens/paper = Office Supplies; group dinners with clients = Client Entertainment.`;
 
-async function callVisionAPI(provider, key, dataUrl) {
-  // Strip "data:image/...;base64," prefix for Anthropic
-  const m = dataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-  const mediaType = m ? m[1] : 'image/jpeg';
-  const b64 = m ? m[2] : dataUrl;
+async function callVisionAPI(provider, key, dataUrls) {
+  // Accept either a single dataUrl (string) or array
+  const urls = Array.isArray(dataUrls) ? dataUrls : [dataUrls];
 
   let resp, raw;
   if (provider === 'anthropic') {
+    // Build Anthropic content array: one image block per page, then a text instruction
+    const content = [];
+    urls.forEach((u, idx) => {
+      const m = u.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+      const mediaType = m ? m[1] : 'image/jpeg';
+      const b64 = m ? m[2] : u;
+      if (urls.length > 1) content.push({ type:'text', text: `Page ${idx+1} of ${urls.length}:` });
+      content.push({ type:'image', source:{ type:'base64', media_type: mediaType, data: b64 } });
+    });
+    content.push({ type:'text', text: VISION_PROMPT });
+
     resp = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{
@@ -765,14 +817,8 @@ async function callVisionAPI(provider, key, dataUrl) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 500,
-        messages: [{
-          role:'user',
-          content:[
-            { type:'image', source:{ type:'base64', media_type: mediaType, data: b64 } },
-            { type:'text', text: VISION_PROMPT },
-          ],
-        }],
+        max_tokens: 600,
+        messages: [{ role:'user', content }],
       }),
     });
     if (!resp.ok) {
@@ -782,7 +828,10 @@ async function callVisionAPI(provider, key, dataUrl) {
     const j = await resp.json();
     raw = (j.content && j.content[0] && j.content[0].text) || '';
   } else {
-    // OpenAI
+    // OpenAI: prompt first, then each image as image_url
+    const content = [{ type:'text', text: VISION_PROMPT + (urls.length>1 ? `\n\nNote: ${urls.length} pages provided — page 1 first, then continuations.` : '') }];
+    urls.forEach(u => content.push({ type:'image_url', image_url:{ url: u } }));
+
     resp = await fetch('https://api.openai.com/v1/chat/completions', {
       method:'POST',
       headers:{
@@ -791,15 +840,9 @@ async function callVisionAPI(provider, key, dataUrl) {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        max_tokens: 500,
+        max_tokens: 600,
         response_format: { type:'json_object' },
-        messages: [{
-          role:'user',
-          content:[
-            { type:'text', text: VISION_PROMPT },
-            { type:'image_url', image_url:{ url: dataUrl } },
-          ],
-        }],
+        messages: [{ role:'user', content }],
       }),
     });
     if (!resp.ok) {
