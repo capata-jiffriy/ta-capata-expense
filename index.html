@@ -91,7 +91,11 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 .page-tile{position:relative;border-radius:10px;overflow:hidden;background:var(--bg-input);border:1px solid var(--border);aspect-ratio:3/4;}
 .page-tile img{width:100%;height:100%;object-fit:cover;display:block;}
 .page-tile .pg-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.7);color:var(--gold);font-size:10px;font-weight:600;padding:2px 6px;border-radius:99px;}
-.page-tile .pg-rm{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.8);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:none;cursor:pointer;}
+.page-tile .pg-rm{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.8);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:none;cursor:pointer;}
+.page-tile .pg-edit{position:absolute;bottom:4px;right:4px;background:rgba(201,169,110,.92);color:#1a1400;height:24px;padding:0 9px;border-radius:99px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;border:none;cursor:pointer;gap:3px;}
+/* Crop modal */
+#crop-stage{background:#000;border-radius:10px;overflow:hidden;max-height:60vh;display:flex;align-items:center;justify-content:center;}
+#crop-stage img{display:block;max-width:100%;}
 .badge-pages{display:inline-block;background:rgba(201,169,110,.15);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px;font-weight:600;}
 
 /* Filter chips */
@@ -345,7 +349,9 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 
     <div style="background:var(--bg-elev);border-radius:10px;padding:12px;margin-top:14px;font-size:13px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--text-2);">Selected:</span><span id="rpt-count">0 claims</span></div>
-      <div style="display:flex;justify-content:space-between;font-weight:600;"><span style="color:var(--text-2);">Total:</span><span id="rpt-total" style="color:var(--gold);">—</span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--text-2);">By currency:</span><span id="rpt-total" style="color:var(--gold);">—</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:6px;margin-top:6px;"><span style="color:var(--text-2);">Total (base ccy):</span><span id="rpt-base-total" style="color:var(--gold);font-size:15px;">—</span></div>
+      <div id="rpt-fx-status" style="font-size:11px;margin-top:6px;color:var(--text-3);display:none;text-align:right;"></div>
     </div>
 
     <button class="btn btn-gold" style="margin-top:18px;" id="rpt-go" onclick="generatePDF()">
@@ -388,10 +394,33 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
   </div>
 </div>
 
+<!-- Crop modal -->
+<div class="modal-bg" id="crop-modal">
+  <div class="modal" style="padding:18px;">
+    <div class="modal-title">Crop &amp; rotate page</div>
+    <div class="modal-sub">Drag the corners to crop. Use rotate if the receipt is sideways.</div>
+    <div id="crop-stage"><img id="crop-image" alt=""></div>
+    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
+      <button class="btn btn-sm" type="button" onclick="cropRotate(-90)" style="flex:1;">↺ Rotate L</button>
+      <button class="btn btn-sm" type="button" onclick="cropRotate(90)" style="flex:1;">↻ Rotate R</button>
+      <button class="btn btn-sm" type="button" onclick="cropReset()" style="flex:1;">Reset</button>
+    </div>
+    <button class="btn btn-gold" style="margin-top:12px;" type="button" onclick="applyCrop()">Apply crop</button>
+    <button class="btn btn-ghost" style="margin-top:6px;" type="button" onclick="closeCrop()">Use uncropped (skip)</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 // ─── STATE ────────────────────────────────────────────────────────────────
+// ─── DEPLOYMENT CONFIG ─────────────────────────────────────────────────────
+// If you've deployed the Cloudflare Worker (see cloudflare-setup.md), paste
+// its URL here. The app will then use the Worker for AI auto-fill so users
+// don't need to paste their own API key. Leave empty to fall back to the
+// per-user "paste key in Profile" flow.
+const AI_PROXY_URL = 'https://ta-expense.jchandra.workers.dev';
+
 const STORAGE_KEYS = { profile:'ta_expense_profile', claims:'ta_expense_claims' };
 let profile = null;
 let claims = [];
@@ -504,10 +533,15 @@ function renderAll() {
   document.getElementById('p-admin').textContent = profile.adminEmail;
   const aiEl = document.getElementById('p-ai');
   if (aiEl) {
-    const key = profile.aiKey || '';
-    const provider = detectProvider(key);
-    aiEl.textContent = provider ? (provider === 'anthropic' ? 'Anthropic ✓' : 'OpenAI ✓') : 'Not set';
-    aiEl.style.color = provider ? 'var(--green)' : 'var(--text-2)';
+    if (AI_PROXY_URL && AI_PROXY_URL.trim()) {
+      aiEl.textContent = 'Claude (via company proxy) ✓';
+      aiEl.style.color = 'var(--green)';
+    } else {
+      const key = profile.aiKey || '';
+      const provider = detectProvider(key);
+      aiEl.textContent = provider ? (provider === 'anthropic' ? 'Anthropic (your key) ✓' : 'OpenAI (your key) ✓') : 'Not set';
+      aiEl.style.color = provider ? 'var(--green)' : 'var(--text-2)';
+    }
   }
   // AI row visibility is now managed by renderReceiptPages() — it shows even
   // without a key so the user is prompted to set one.
@@ -604,6 +638,7 @@ function viewClaim(id) {
 async function onReceiptSelected(ev) {
   const files = Array.from(ev.target.files || []);
   if (!files.length) return;
+  const indicesAdded = [];
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue;
     if (pendingPages.length >= MAX_PAGES) {
@@ -613,6 +648,7 @@ async function onReceiptSelected(ev) {
     try {
       const compressed = await compressImage(file);
       pendingPages.push({ dataUrl: compressed, name: file.name });
+      indicesAdded.push(pendingPages.length - 1);
     } catch(e) {
       console.error(e);
       toast('Could not read ' + file.name, 'error');
@@ -623,6 +659,11 @@ async function onReceiptSelected(ev) {
   // Clear the input value so re-selecting the same file works
   ev.target.value = '';
   renderReceiptPages();
+
+  // If exactly ONE new photo was added (typical camera-capture flow), auto-open crop on it
+  if (indicesAdded.length === 1) {
+    setTimeout(() => openCrop(indicesAdded[0]), 100);
+  }
 }
 
 function renderReceiptPages() {
@@ -645,15 +686,17 @@ function renderReceiptPages() {
        <div class="pg-num">Page ${i+1}</div>
        <button class="pg-rm" type="button" onclick="removePage(${i})" aria-label="Remove page ${i+1}">×</button>
        <img src="${p.dataUrl}" alt="Receipt page ${i+1}">
+       <button class="pg-edit" type="button" onclick="openCrop(${i})" aria-label="Crop page ${i+1}">✎ Crop</button>
      </div>`
   ).join('') + '</div>' +
   `<div style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:right;">${pendingPages.length} page${pendingPages.length===1?'':'s'} attached</div>`;
 
-  // Show the AI row whenever we have pages — even with no key, so user is prompted to set it up
+  // Show the AI row whenever we have pages
   if (aiRow && aiBtn && aiHint) {
     aiRow.style.display = 'block';
-    const hasKey = profile && profile.aiKey;
-    if (hasKey) {
+    const ai = getAiMode();
+    const usable = ai.mode === 'proxy' || ai.mode === 'direct';
+    if (usable) {
       aiBtn.disabled = false;
       aiBtn.style.opacity = '1';
       aiBtn.innerHTML = `🪄 Done — Read ${pendingPages.length} page${pendingPages.length===1?'':'s'} with AI`;
@@ -661,8 +704,8 @@ function renderReceiptPages() {
     } else {
       aiBtn.disabled = true;
       aiBtn.style.opacity = '.55';
-      aiBtn.innerHTML = '🪄 AI auto-fill (set up in Profile)';
-      aiHint.innerHTML = 'No API key set. Go to <strong>Profile → Edit profile</strong> and paste your Anthropic or OpenAI key to enable AI auto-fill.';
+      aiBtn.innerHTML = '🪄 AI auto-fill (not configured)';
+      aiHint.innerHTML = 'AI auto-fill is not set up. Either Jiffriy enables the company proxy, or go to <strong>Profile → Edit profile</strong> and paste your own Anthropic/OpenAI key.';
     }
   }
 }
@@ -671,6 +714,100 @@ function removePage(i) {
   pendingPages.splice(i, 1);
   renderReceiptPages();
   if (pendingPages.length === 0) _autoFillDone = false;
+}
+
+// ─── CROPPING ─────────────────────────────────────────────────────────────
+let _cropper = null;
+let _cropIndex = -1;
+let _cropperLoadPromise = null;
+
+function loadCropper() {
+  if (window.Cropper) return Promise.resolve();
+  if (_cropperLoadPromise) return _cropperLoadPromise;
+  _cropperLoadPromise = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css';
+    document.head.appendChild(css);
+    const js = document.createElement('script');
+    js.src = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js';
+    js.onload = resolve;
+    js.onerror = () => reject(new Error('Could not load crop library — check internet connection'));
+    document.head.appendChild(js);
+  });
+  return _cropperLoadPromise;
+}
+
+async function openCrop(index) {
+  if (index < 0 || index >= pendingPages.length) return;
+  _cropIndex = index;
+  try {
+    toast('Loading crop tool…','');
+    await loadCropper();
+  } catch(e) {
+    alert('Could not load the crop library: ' + e.message);
+    return;
+  }
+  const img = document.getElementById('crop-image');
+  img.src = pendingPages[index].dataUrl;
+  document.getElementById('crop-modal').classList.add('show');
+  // Destroy any prior cropper, then init after image is in DOM
+  if (_cropper) { try { _cropper.destroy(); } catch(e){} _cropper = null; }
+  // Wait for image to load before init
+  const initCropper = () => {
+    _cropper = new Cropper(img, {
+      viewMode: 1,
+      autoCropArea: 1,
+      movable: true,
+      zoomable: true,
+      scalable: false,
+      rotatable: true,
+      dragMode: 'move',
+      background: false,
+      responsive: true,
+      checkOrientation: true,
+    });
+  };
+  if (img.complete && img.naturalWidth > 0) initCropper();
+  else img.onload = initCropper;
+}
+
+function cropRotate(deg) { if (_cropper) _cropper.rotate(deg); }
+function cropReset() { if (_cropper) _cropper.reset(); }
+
+function closeCrop() {
+  if (_cropper) { try { _cropper.destroy(); } catch(e){} _cropper = null; }
+  document.getElementById('crop-modal').classList.remove('show');
+  _cropIndex = -1;
+}
+
+async function applyCrop() {
+  if (!_cropper || _cropIndex < 0) { closeCrop(); return; }
+  try {
+    const canvas = _cropper.getCroppedCanvas({
+      maxWidth: 2400,
+      maxHeight: 2400,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    });
+    if (!canvas) { toast('Could not crop — try again','error'); return; }
+    // Re-compress
+    const finalCanvas = document.createElement('canvas');
+    const maxW = 1600;
+    let w = canvas.width, h = canvas.height;
+    if (w > maxW) { h = h * (maxW / w); w = maxW; }
+    finalCanvas.width = w; finalCanvas.height = h;
+    finalCanvas.getContext('2d').drawImage(canvas, 0, 0, w, h);
+    const newUrl = finalCanvas.toDataURL('image/jpeg', 0.8);
+    pendingPages[_cropIndex].dataUrl = newUrl;
+    _autoFillDone = false;            // Allow AI re-run after crop
+    closeCrop();
+    renderReceiptPages();
+    toast('Cropped','success');
+  } catch(e) {
+    console.error('Crop apply failed:', e);
+    toast('Crop failed: ' + e.message,'error');
+  }
 }
 
 function clearReceipts() {
@@ -713,25 +850,40 @@ async function manualAutoFill() {
   await autoFillFromReceipt();
 }
 
+// Decide how to route AI calls:
+//   1. If a Worker proxy URL is configured at the top of this file → use it (no user key needed)
+//   2. Else if user has pasted their own key in Profile → use that
+//   3. Else → show "set up AI" hint
+function getAiMode() {
+  if (AI_PROXY_URL && AI_PROXY_URL.trim()) return { mode:'proxy', label:'Claude (via proxy)' };
+  const key = profile && profile.aiKey;
+  if (!key) return { mode:'none' };
+  const provider = detectProvider(key);
+  if (!provider) return { mode:'invalid' };
+  return { mode:'direct', provider, key, label: provider==='anthropic'?'Claude':'OpenAI' };
+}
+
 async function autoFillFromReceipt() {
   if (_autoFillDone) return;
   if (pendingPages.length === 0) return;
-  const key = profile && profile.aiKey;
-  if (!key) {
-    setAiStatus('No API key set — go to Profile → Edit profile to paste one','var(--amber)');
+  const ai = getAiMode();
+  if (ai.mode === 'none') {
+    setAiStatus('AI auto-fill is not configured — go to Profile to set up a key, or ask Jiffriy to enable the company proxy','var(--amber)');
     return;
   }
-  const provider = detectProvider(key);
-  if (!provider) { setAiStatus('Invalid API key format (must start sk- or sk-ant-)','var(--red)'); return; }
+  if (ai.mode === 'invalid') {
+    setAiStatus('Invalid API key format (must start sk- or sk-ant-)','var(--red)');
+    return;
+  }
 
   _autoFillDone = true;
   const btn = document.getElementById('ai-fill-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>&nbsp;&nbsp;Reading…'; }
   // Cap at 3 pages to keep cost and latency reasonable
   const pagesToSend = pendingPages.slice(0, 3).map(p => p.dataUrl);
-  setAiStatus('🪄 Reading ' + pagesToSend.length + ' page' + (pagesToSend.length===1?'':'s') + ' with ' + (provider==='anthropic'?'Claude':'OpenAI') + '…', 'var(--gold)');
+  setAiStatus('🪄 Reading ' + pagesToSend.length + ' page' + (pagesToSend.length===1?'':'s') + ' with ' + ai.label + '…', 'var(--gold)');
   try {
-    const parsed = await callVisionAPI(provider, key, pagesToSend);
+    const parsed = await callVisionAPI(ai, pagesToSend);
     if (!parsed) { setAiStatus('Could not parse the AI response — fill manually','var(--red)'); _autoFillDone = false; if (btn) { btn.disabled = false; } renderReceiptPages(); return; }
     applyAutoFill(parsed);
     setAiStatus('✓ Auto-filled — please review values before saving','var(--green)');
@@ -790,13 +942,41 @@ Return ONLY valid JSON, no markdown fences, no commentary. Schema:
 
 Use null for fields you can't determine. Pick the category that best fits — restaurants/cafés = Meals; taxis/Grab/Uber/MRT = Transport; flights/trains = Travel; hotels = Accommodation; SIM/data/phone = Communication; pens/paper = Office Supplies; group dinners with clients = Client Entertainment.`;
 
-async function callVisionAPI(provider, key, dataUrls) {
-  // Accept either a single dataUrl (string) or array
+async function callVisionAPI(ai, dataUrls) {
+  // ai = { mode:'proxy'|'direct', provider?, key? }
   const urls = Array.isArray(dataUrls) ? dataUrls : [dataUrls];
 
   let resp, raw;
-  if (provider === 'anthropic') {
-    // Build Anthropic content array: one image block per page, then a text instruction
+  // ─── PROXY mode ── Cloudflare Worker holds the key; we send Anthropic-shape body ─
+  if (ai.mode === 'proxy') {
+    const content = [];
+    urls.forEach((u, idx) => {
+      const m = u.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+      const mediaType = m ? m[1] : 'image/jpeg';
+      const b64 = m ? m[2] : u;
+      if (urls.length > 1) content.push({ type:'text', text: `Page ${idx+1} of ${urls.length}:` });
+      content.push({ type:'image', source:{ type:'base64', media_type: mediaType, data: b64 } });
+    });
+    content.push({ type:'text', text: VISION_PROMPT });
+
+    resp = await fetch(AI_PROXY_URL, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        messages: [{ role:'user', content }],
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error('Proxy ' + resp.status + ': ' + err.slice(0,200));
+    }
+    const j = await resp.json();
+    raw = (j.content && j.content[0] && j.content[0].text) || '';
+
+  // ─── DIRECT mode ── User's own key talks straight to provider ────────
+  } else if (ai.provider === 'anthropic') {
     const content = [];
     urls.forEach((u, idx) => {
       const m = u.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
@@ -811,7 +991,7 @@ async function callVisionAPI(provider, key, dataUrls) {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'x-api-key': key,
+        'x-api-key': ai.key,
         'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true',
       },
@@ -828,7 +1008,7 @@ async function callVisionAPI(provider, key, dataUrls) {
     const j = await resp.json();
     raw = (j.content && j.content[0] && j.content[0].text) || '';
   } else {
-    // OpenAI: prompt first, then each image as image_url
+    // OpenAI direct
     const content = [{ type:'text', text: VISION_PROMPT + (urls.length>1 ? `\n\nNote: ${urls.length} pages provided — page 1 first, then continuations.` : '') }];
     urls.forEach(u => content.push({ type:'image_url', image_url:{ url: u } }));
 
@@ -836,7 +1016,7 @@ async function callVisionAPI(provider, key, dataUrls) {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'Authorization':'Bearer ' + key,
+        'Authorization':'Bearer ' + ai.key,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -943,9 +1123,72 @@ function openReportModal() {
   reportSelection = new Set(eligible.map(c => c.id));
   renderReportList();
   document.getElementById('report-modal').classList.add('show');
+  // Pre-fetch FX rates so the running total updates with base-currency conversion
+  fetchFxIfNeeded();
 }
 function closeReportModal() { document.getElementById('report-modal').classList.remove('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ─── FX RATES ─────────────────────────────────────────────────────────────
+// Maps entity → reporting base currency
+function getBaseCurrency() {
+  if (!profile) return 'SGD';
+  if (profile.company === 'TransAsia HK') return 'HKD';
+  return 'SGD'; // TransAsia SG + Capata
+}
+
+const FX_CURRENCIES = ['SGD','HKD','USD','MYR','IDR','THB','JPY','CNY','EUR','GBP'];
+let _fxCache = null;   // { base, rates, fetchedAt, date }
+
+async function fetchFx(base) {
+  // Frankfurter is free, no API key, CORS-enabled. Data sourced from ECB.
+  const targets = FX_CURRENCIES.filter(c => c !== base).join(',');
+  const url = `https://api.frankfurter.app/latest?from=${base}&to=${targets}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('FX service responded ' + resp.status);
+  const j = await resp.json();
+  // j.rates is "1 base = rates[X] X" — to convert X → base, divide.
+  _fxCache = { base, rates: j.rates, date: j.date, fetchedAt: Date.now() };
+  return _fxCache;
+}
+
+// Fetch if cache is stale (>60 min) or base currency changed
+async function fetchFxIfNeeded() {
+  const base = getBaseCurrency();
+  const stale = !_fxCache || _fxCache.base !== base || (Date.now() - _fxCache.fetchedAt) > 3600000;
+  if (!stale) { updateReportTotals(); return _fxCache; }
+  try {
+    setRptFxStatus('Fetching live FX rates…','var(--text-2)');
+    await fetchFx(base);
+    setRptFxStatus(`FX rates loaded (ECB, ${_fxCache.date}) — base ${base}`,'var(--green)');
+    updateReportTotals();
+    return _fxCache;
+  } catch(e) {
+    console.warn('FX fetch failed:', e);
+    setRptFxStatus(`Couldn't load FX rates (${e.message}). Report will show original currencies only.`,'var(--amber)');
+    _fxCache = null;
+    updateReportTotals();
+    return null;
+  }
+}
+
+function setRptFxStatus(msg, color) {
+  const el = document.getElementById('rpt-fx-status');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.color = color || 'var(--text-2)';
+}
+
+// Convert an amount from currency X to base currency
+function toBase(amount, ccy) {
+  if (!_fxCache) return null;
+  const base = _fxCache.base;
+  if (ccy === base) return amount;
+  const rate = _fxCache.rates[ccy];
+  if (!rate || rate === 0) return null;
+  return amount / rate;
+}
 
 function renderReportList() {
   const eligible = claims.filter(c => c.status !== 'Submitted')
@@ -984,6 +1227,24 @@ function updateReportTotals() {
   sel.forEach(c => { byCcy[c.currency] = (byCcy[c.currency]||0) + c.amount; });
   const parts = Object.entries(byCcy).map(([ccy,sum]) => `${ccy} ${sum.toFixed(2)}`);
   document.getElementById('rpt-total').textContent = parts.length ? parts.join(' · ') : '—';
+
+  // Base-currency total
+  const base = getBaseCurrency();
+  const baseEl = document.getElementById('rpt-base-total');
+  if (baseEl) {
+    if (!_fxCache) {
+      baseEl.textContent = `${base} — (FX rates loading…)`;
+    } else {
+      let baseSum = 0; let allOK = true;
+      sel.forEach(c => {
+        const b = toBase(c.amount, c.currency);
+        if (b == null) allOK = false; else baseSum += b;
+      });
+      baseEl.textContent = allOK
+        ? `${base} ${baseSum.toFixed(2)}`
+        : `${base} ${baseSum.toFixed(2)} (some rates missing)`;
+    }
+  }
   document.getElementById('rpt-go').disabled = sel.length === 0;
 }
 
@@ -998,6 +1259,10 @@ async function generatePDF() {
   btn.disabled = true;
 
   try {
+    // Ensure fresh FX rates before building the PDF
+    await fetchFxIfNeeded();
+    const base = getBaseCurrency();
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'mm', format:'a4' });
     const pageW = doc.internal.pageSize.getWidth();
@@ -1008,6 +1273,13 @@ async function generatePDF() {
     const dateFrom = dates[0], dateTo = dates[dates.length-1];
     const totalsByCcy = {};
     selected.forEach(c => { totalsByCcy[c.currency] = (totalsByCcy[c.currency]||0) + c.amount; });
+    // Per-claim base values + grand total in base
+    let grandBase = 0, anyMissing = false;
+    const baseValues = selected.map(c => {
+      const b = toBase(c.amount, c.currency);
+      if (b == null) anyMissing = true; else grandBase += b;
+      return b;
+    });
 
     // ── Page 1: Cover ───────────────────────────────────────────────
     doc.setFillColor(8,8,8);
@@ -1039,11 +1311,33 @@ async function generatePDF() {
 
     y += 4;
     doc.setFont('helvetica','bold').setFontSize(11);
-    doc.text('Total reimbursement requested:', 20, y); y += 7;
-    doc.setFont('helvetica','normal').setFontSize(13);
+    doc.text('Totals by original currency:', 20, y); y += 7;
+    doc.setFont('helvetica','normal').setFontSize(12);
     Object.entries(totalsByCcy).forEach(([ccy, sum]) => {
-      doc.text(`${ccy}  ${sum.toFixed(2)}`, 24, y); y += 7;
+      doc.text(`${ccy}  ${sum.toFixed(2)}`, 24, y); y += 6;
     });
+
+    y += 3;
+    doc.setDrawColor(201,169,110);
+    doc.setLineWidth(0.4);
+    doc.line(20, y, pageW-20, y); y += 8;
+    doc.setLineWidth(0.2);
+
+    doc.setFont('helvetica','bold').setFontSize(11);
+    doc.setTextColor(60,60,60);
+    doc.text(`Total reimbursement in base currency (${base}):`, 20, y); y += 8;
+    doc.setFont('helvetica','bold').setFontSize(16);
+    doc.setTextColor(120,90,30);
+    doc.text(`${base}  ${grandBase.toFixed(2)}${anyMissing ? '  *' : ''}`, 24, y); y += 7;
+    doc.setTextColor(120,120,120);
+    doc.setFont('helvetica','normal').setFontSize(9);
+    if (_fxCache) {
+      doc.text(`FX rates from European Central Bank, dated ${_fxCache.date}.${anyMissing ? '  * Some rates were unavailable.' : ''}`, 20, y);
+    } else {
+      doc.text('FX rates could not be fetched — base-currency total may be unavailable.', 20, y);
+    }
+    y += 6;
+    doc.setTextColor(0,0,0);
 
     // Approval block
     y = pageH - 70;
@@ -1067,26 +1361,43 @@ async function generatePDF() {
 
     doc.autoTable({
       startY: 28,
-      head: [['#','Date','Category','Title','Trip','Currency','Amount']],
+      head: [['#','Date','Category','Title','Trip','Curr','Amount',`${base}`]],
       body: selected.map((c,i) => [
         i+1, c.date, c.category,
-        truncate(c.title, 38),
-        truncate(c.trip || '—', 22),
-        c.currency, c.amount.toFixed(2)
+        truncate(c.title, 34),
+        truncate(c.trip || '—', 18),
+        c.currency, c.amount.toFixed(2),
+        baseValues[i] != null ? baseValues[i].toFixed(2) : '—'
       ]),
-      foot: Object.entries(totalsByCcy).map(([ccy,sum]) => ['', '', '', '', 'Total', ccy, sum.toFixed(2)]),
+      foot: [
+        // Per-original-currency subtotals
+        ...Object.entries(totalsByCcy).map(([ccy,sum]) => ['', '', '', '', 'Subtotal', ccy, sum.toFixed(2), '']),
+        // Grand total in base
+        ['', '', '', '', '', `Total ${base}`, '', grandBase.toFixed(2)]
+      ],
       styles: { fontSize: 9, cellPadding: 2.5 },
       headStyles: { fillColor: [201,169,110], textColor: 20, fontStyle:'bold' },
       footStyles: { fillColor: [240,240,240], textColor: 20, fontStyle:'bold' },
       columnStyles: {
         0: { cellWidth: 8 },
         1: { cellWidth: 20 },
-        2: { cellWidth: 28 },
-        4: { cellWidth: 25 },
-        5: { cellWidth: 16 },
-        6: { cellWidth: 20, halign: 'right' }
+        2: { cellWidth: 24 },
+        4: { cellWidth: 20 },
+        5: { cellWidth: 12 },
+        6: { cellWidth: 18, halign: 'right' },
+        7: { cellWidth: 22, halign: 'right', fontStyle:'bold' },
       },
     });
+
+    // Note about FX rates under the table
+    if (_fxCache) {
+      const ty = doc.lastAutoTable.finalY + 4;
+      doc.setFont('helvetica','italic').setFontSize(8).setTextColor(120,120,120);
+      doc.text(`FX rates as of ${_fxCache.date} (ECB / frankfurter.app). 1 ${base} = ` +
+        Object.entries(_fxCache.rates).slice(0,6).map(([c,r]) => `${r.toFixed(4)} ${c}`).join(', ') + (Object.keys(_fxCache.rates).length>6?', …':''),
+        20, ty, { maxWidth: pageW - 40 });
+      doc.setTextColor(0,0,0);
+    }
 
     // ── Pages 3+: One PDF page per receipt page ───────────────────
     for (let i = 0; i < selected.length; i++) {
