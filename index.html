@@ -433,6 +433,10 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     <div class="modal-title" id="action-title">Claim</div>
     <div class="modal-sub" id="action-sub">Choose an action</div>
 
+    <button class="action-sheet-btn" id="action-view-btn" type="button" onclick="actionViewReceipts()" style="color:var(--gold);border-color:rgba(201,169,110,.3);">
+      <span class="icn">🔍</span>
+      <span id="action-view-label">View receipt photos</span>
+    </button>
     <button class="action-sheet-btn amber" id="action-hold-btn" type="button" onclick="actionToggleHold()">
       <span class="icn">⏸</span>
       <span id="action-hold-label">Put on hold (exclude from next report)</span>
@@ -442,6 +446,16 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
       <span>Delete this claim</span>
     </button>
     <button class="btn btn-ghost" style="margin-top:10px;" type="button" onclick="closeModal('action-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Receipt viewer modal -->
+<div class="modal-bg" id="receipt-viewer-modal">
+  <div class="modal" style="padding:18px;">
+    <div class="modal-title" id="receipt-viewer-title">Receipts</div>
+    <div class="modal-sub" id="receipt-viewer-sub">Tap an image to view full size</div>
+    <div id="receipt-viewer-grid" style="display:flex;flex-direction:column;gap:12px;max-height:65vh;overflow-y:auto;padding:4px;"></div>
+    <button class="btn btn-ghost" style="margin-top:14px;" type="button" onclick="closeModal('receipt-viewer-modal')">Close</button>
   </div>
 </div>
 
@@ -826,36 +840,92 @@ function viewClaim(id) {
   _actionClaimId = id;
 
   // Header summary
+  const pages = (c.receipts && c.receipts.length) || (c.receipt ? 1 : 0);
   const summary = `${c.category} · ${c.currency} ${formatMoney(c.amount)} · ${c.date}` +
     (c.trip ? ' · ' + c.trip : '') +
+    ` · ${pages} page${pages===1?'':'s'}` +
     (c.noReceipt ? ' · no receipt' : '');
   document.getElementById('action-title').textContent = c.title;
   document.getElementById('action-sub').textContent = summary + (c.notes ? '\n\nNotes: ' + c.notes : '');
 
-  // Hold/Release toggle label
+  // View-receipts button label
+  const viewLabel = document.getElementById('action-view-label');
+  if (viewLabel) viewLabel.textContent = pages > 0
+    ? `View ${pages} receipt photo${pages===1?'':'s'}`
+    : 'No receipt attached';
+
+  // Status-change button — meaning depends on current status:
+  //   Submitted → "Un-submit (return to Draft)"  ← recovery for mistakes
+  //   Hold      → "Release from hold (include in next report)"
+  //   Draft     → "Put on hold (exclude from next report)"
   const holdBtn = document.getElementById('action-hold-btn');
   const holdLabel = document.getElementById('action-hold-label');
+  holdBtn.style.display = '';   // always visible — user can always change status
   if (c.status === 'Submitted') {
-    holdBtn.style.display = 'none';
+    holdLabel.textContent = 'Un-submit (return to Draft — include in a new report)';
+  } else if (c.status === 'Hold') {
+    holdLabel.textContent = 'Release from hold (include in next report)';
   } else {
-    holdBtn.style.display = '';
-    holdLabel.textContent = c.status === 'Hold'
-      ? 'Release from hold (include in next report)'
-      : 'Put on hold (exclude from next report)';
+    holdLabel.textContent = 'Put on hold (exclude from next report)';
   }
 
   document.getElementById('action-modal').classList.add('show');
 }
 
+// Open a receipt viewer for the currently-selected claim
+function actionViewReceipts() {
+  if (!_actionClaimId) return;
+  const c = claims.find(x => x.id === _actionClaimId);
+  if (!c) return;
+  const pages = (c.receipts && c.receipts.length) ? c.receipts : (c.receipt ? [c.receipt] : []);
+
+  document.getElementById('receipt-viewer-title').textContent = c.title;
+  const sub = `${c.category} · ${c.currency} ${formatMoney(c.amount)} · ${c.date}` +
+              (pages.length ? ` · ${pages.length} page${pages.length===1?'':'s'}` : ' · no receipt');
+  document.getElementById('receipt-viewer-sub').textContent = sub;
+
+  const grid = document.getElementById('receipt-viewer-grid');
+  if (pages.length === 0) {
+    grid.innerHTML = `<div style="text-align:center;padding:30px 10px;color:var(--text-2);">
+      <div style="font-size:36px;margin-bottom:8px;">📄</div>
+      <div><strong>No receipt attached.</strong></div>
+      <div style="font-size:12px;margin-top:6px;">${c.noReceipt ? 'This claim was submitted without a receipt — director will review manually.' : 'Receipt may have been lost during import — try re-exporting from the original device.'}</div>
+    </div>`;
+  } else {
+    grid.innerHTML = pages.map((p, i) =>
+      `<div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;padding:8px;">
+         <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;font-weight:600;">PAGE ${i+1} of ${pages.length}</div>
+         <a href="${p}" target="_blank" rel="noopener" style="display:block;">
+           <img src="${p}" style="width:100%;max-height:60vh;object-fit:contain;border-radius:6px;background:#fff;" alt="Receipt page ${i+1}">
+         </a>
+       </div>`
+    ).join('');
+  }
+  // Close the action sheet, open the viewer
+  closeModal('action-modal');
+  document.getElementById('receipt-viewer-modal').classList.add('show');
+}
+
+// Cycle the claim's status based on its current state:
+//   Submitted → Draft (recovery from mistaken "Mark as Submitted")
+//   Hold      → Draft (release back into the pool)
+//   Draft     → Hold  (exclude from next report)
 function actionToggleHold() {
   if (!_actionClaimId) return;
   const c = claims.find(x => x.id === _actionClaimId);
   if (!c) return;
-  c.status = c.status === 'Hold' ? 'Draft' : 'Hold';
+  const prev = c.status;
+  c.status = prev === 'Draft' ? 'Hold' : 'Draft';
+  // Stamp un-submit so we know if a claim was previously submitted
+  if (prev === 'Submitted') c.unsubmittedAt = new Date().toISOString();
   saveClaimsToStorage();
   closeModal('action-modal');
   renderClaims();
-  toast(c.status === 'Hold' ? 'Claim put on hold' : 'Claim released — back in pool','success');
+  const msg =
+    prev === 'Submitted' ? 'Claim un-submitted — back in Draft pool' :
+    prev === 'Hold'      ? 'Claim released — back in pool' :
+    'Claim put on hold';
+  toast(msg,'success');
 }
 
 function actionDelete() {
@@ -2086,23 +2156,31 @@ function importData() {
     // Count receipt pages we're bringing in, so the user can verify nothing got orphaned
     const newReceiptPages = newOnes.reduce((s,c) => s + (c.receipts ? c.receipts.length : 0), 0);
     const newNoReceiptCount = newOnes.filter(c => c.noReceipt).length;
+    const newSubmittedCount = newOnes.filter(c => c.status === 'Submitted').length;
 
     if (newOnes.length === 0) {
       alert(`No new claims to import.\n\nThe file contained ${incomingAll.length} claim${incomingAll.length===1?'':'s'}, all of which are already on this device.`);
       return;
     }
 
+    // Reset Submitted → Draft on import: the user is bringing these claims to a NEW device
+    // to include in a fresh report, so they should be available in the report modal here.
+    // (The source device still has its own copies marked Submitted.)
+    const resetCount = newSubmittedCount;
+    const finalNewOnes = newOnes.map(c => c.status === 'Submitted' ? { ...c, status: 'Draft' } : c);
+
     // Confirm with the user before merging
     const summary =
       `Import ${newOnes.length} claim${newOnes.length===1?'':'s'} from "${file.name}"?\n\n` +
-      `Receipt pages to import: ${newReceiptPages}\n` +
-      (newNoReceiptCount ? `No-receipt claims: ${newNoReceiptCount}\n` : '') +
-      (dupes ? `Skipped (already on this device): ${dupes}\n` : '') +
+      `• Receipt pages: ${newReceiptPages}\n` +
+      (newNoReceiptCount ? `• No-receipt claims: ${newNoReceiptCount}\n` : '') +
+      (resetCount ? `• Claims marked Submitted on the source device: ${resetCount} (will be reset to Draft here so they can be included in a new report)\n` : '') +
+      (dupes ? `• Skipped (already on this device): ${dupes}\n` : '') +
       `\nYour existing ${claims.length} claim${claims.length===1?'':'s'} will be kept.\n` +
       `Each receipt photo stays with its own claim.`;
     if (!confirm(summary)) return;
 
-    const merged = [...claims, ...newOnes];
+    const merged = [...claims, ...finalNewOnes];
     const res = storageSet(STORAGE_KEYS.claims, JSON.stringify(merged));
     if (!res.persisted) {
       alert('⚠ Storage on this device is full — could not save the imported claims.\n\nTip: generate a report from your existing claims and clear them, then try the import again.');
@@ -2112,13 +2190,16 @@ function importData() {
     renderClaims();
 
     // Final verification summary — counts back what was actually saved
-    const importedReceiptPages = newOnes.reduce((s,c) => s + (c.receipts ? c.receipts.length : 0), 0);
+    const importedReceiptPages = finalNewOnes.reduce((s,c) => s + (c.receipts ? c.receipts.length : 0), 0);
+    const draftCount = finalNewOnes.filter(c => c.status === 'Draft').length;
     alert(
       `✓ Import complete\n\n` +
-      `${newOnes.length} claim${newOnes.length===1?'':'s'} added\n` +
+      `${finalNewOnes.length} claim${finalNewOnes.length===1?'':'s'} added (all set to Draft)\n` +
       `${importedReceiptPages} receipt page${importedReceiptPages===1?'':'s'} attached to their claims\n` +
+      (resetCount ? `${resetCount} reset from Submitted → Draft so they appear in a new report\n` : '') +
       (dupes ? `${dupes} duplicate${dupes===1?'':'s'} skipped\n` : '') +
-      `\nTotal on this device now: ${claims.length} claim${claims.length===1?'':'s'}.`
+      `\nTotal on this device now: ${claims.length} claim${claims.length===1?'':'s'}.\n\n` +
+      `Tap "Generate Expense Report" on the Claims tab — all ${draftCount} imported claims should now be ticked.`
     );
   };
   input.click();
