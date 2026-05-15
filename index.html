@@ -1409,18 +1409,74 @@ function getBaseCurrency() {
 }
 
 const FX_CURRENCIES = ['SGD','HKD','USD','MYR','IDR','THB','JPY','CNY','EUR','GBP'];
-let _fxCache = null;   // { base, rates, fetchedAt, date }
+let _fxCache = null;   // { base, rates, fetchedAt, date, source }
+
+// Three independent FX sources, tried in order. The first one to succeed wins.
+// All three are free, no API key needed, CORS-enabled.
+const FX_SOURCES = [
+  {
+    name: 'jsdelivr-cdn',
+    fetch: async (base) => {
+      // Hosted on Cloudflare/jsDelivr CDN — usually the most globally reachable.
+      const b = base.toLowerCase();
+      const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${b}.json`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('jsdelivr HTTP ' + resp.status);
+      const j = await resp.json();
+      const raw = j[b] || {};
+      const rates = {};
+      for (const c of FX_CURRENCIES) {
+        if (c === base) continue;
+        const v = raw[c.toLowerCase()];
+        if (v != null) rates[c] = v;
+      }
+      if (Object.keys(rates).length === 0) throw new Error('jsdelivr returned no rates');
+      return { base, rates, date: j.date || new Date().toISOString().slice(0,10) };
+    }
+  },
+  {
+    name: 'frankfurter',
+    fetch: async (base) => {
+      const targets = FX_CURRENCIES.filter(c => c !== base).join(',');
+      const url = `https://api.frankfurter.app/latest?from=${base}&to=${targets}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('frankfurter HTTP ' + resp.status);
+      const j = await resp.json();
+      return { base, rates: j.rates || {}, date: j.date };
+    }
+  },
+  {
+    name: 'open.er-api',
+    fetch: async (base) => {
+      const url = `https://open.er-api.com/v6/latest/${base}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('open.er-api HTTP ' + resp.status);
+      const j = await resp.json();
+      if (j.result !== 'success') throw new Error('open.er-api result: ' + j.result);
+      const rates = {};
+      for (const c of FX_CURRENCIES) {
+        if (c === base) continue;
+        if (j.rates && j.rates[c] != null) rates[c] = j.rates[c];
+      }
+      return { base, rates, date: (j.time_last_update_utc || '').slice(0,10) || new Date().toISOString().slice(0,10) };
+    }
+  },
+];
 
 async function fetchFx(base) {
-  // Frankfurter is free, no API key, CORS-enabled. Data sourced from ECB.
-  const targets = FX_CURRENCIES.filter(c => c !== base).join(',');
-  const url = `https://api.frankfurter.app/latest?from=${base}&to=${targets}`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error('FX service responded ' + resp.status);
-  const j = await resp.json();
-  // j.rates is "1 base = rates[X] X" — to convert X → base, divide.
-  _fxCache = { base, rates: j.rates, date: j.date, fetchedAt: Date.now() };
-  return _fxCache;
+  const errors = [];
+  for (const src of FX_SOURCES) {
+    try {
+      const result = await src.fetch(base);
+      _fxCache = { ...result, fetchedAt: Date.now(), source: src.name };
+      console.log('FX rates loaded from', src.name, _fxCache);
+      return _fxCache;
+    } catch (e) {
+      console.warn('FX source failed:', src.name, e.message);
+      errors.push(`${src.name}: ${e.message}`);
+    }
+  }
+  throw new Error('All FX sources failed → ' + errors.join('; '));
 }
 
 // Fetch if cache is stale (>60 min) or base currency changed
@@ -1431,7 +1487,7 @@ async function fetchFxIfNeeded() {
   try {
     setRptFxStatus('Fetching live FX rates…','var(--text-2)');
     await fetchFx(base);
-    setRptFxStatus(`FX rates loaded (ECB, ${_fxCache.date}) — base ${base}`,'var(--green)');
+    setRptFxStatus(`✓ FX loaded from ${_fxCache.source} (${_fxCache.date}) — base ${base}`,'var(--green)');
     updateReportTotals();
     return _fxCache;
   } catch(e) {
@@ -1451,23 +1507,21 @@ function setRptFxStatus(msg, color) {
   el.style.color = color || 'var(--text-2)';
 }
 
-// Diagnostic: immediately test the FX service and show results in a popup
+// Diagnostic: try each FX source in turn and show what happened.
 async function testFxRates() {
   const base = getBaseCurrency();
+  alert('Testing FX rates (will try ' + FX_SOURCES.length + ' sources)…\nBase currency: ' + base + '\n\nTap OK to run.');
+  _fxCache = null;
   try {
-    alert('Testing FX rates from frankfurter.app…\nBase currency: ' + base + '\n(tap OK to run)');
-    // Force a fresh fetch by clearing the cache
-    _fxCache = null;
     const res = await fetchFx(base);
-    if (!res || !res.rates) {
-      alert('✗ Test failed: response had no rates.');
-      return;
-    }
     const sample = Object.entries(res.rates).slice(0, 6)
       .map(([c, r]) => `  1 ${base} = ${r.toFixed(4)} ${c}`).join('\n');
-    alert(`✓ FX rates loaded\n\nBase: ${base}\nDate: ${res.date}\nRates fetched: ${Object.keys(res.rates).length}\n\nSample:\n${sample}\n\nExample conversion:\n  100 USD ≈ ${(100 / res.rates.USD).toFixed(2)} ${base}`);
+    const exampleCcy = res.rates.USD ? 'USD' : Object.keys(res.rates)[0];
+    const exampleRate = res.rates[exampleCcy];
+    const exampleConv = exampleRate ? `100 ${exampleCcy} ≈ ${(100 / exampleRate).toFixed(2)} ${base}` : '(no example available)';
+    alert(`✓ FX rates loaded from ${res.source}\n\nBase: ${base}\nDate: ${res.date}\nRates fetched: ${Object.keys(res.rates).length}\n\nSample rates:\n${sample}\n\nExample conversion:\n  ${exampleConv}`);
   } catch (e) {
-    alert('✗ FX test FAILED\n\nError: ' + (e.message || e) + '\n\nPossible causes:\n• No internet connection\n• Network blocking frankfurter.app\n• Browser blocked the request\n\nThe report will still be generated, but foreign-currency claims will show "—" in the FX column.');
+    alert('✗ All FX sources FAILED\n\n' + (e.message || e) + '\n\nLikely causes:\n• Network blocking all 3 services\n• No internet connection\n• Corporate firewall\n\nReports can still be generated; foreign-currency claims will show "—" in the FX column. Send me a screenshot of this and I\'ll try a different approach.');
   }
 }
 
@@ -1630,7 +1684,7 @@ async function generatePDF() {
     doc.setTextColor(120,120,120);
     doc.setFont('helvetica','normal').setFontSize(9);
     if (_fxCache) {
-      doc.text(`Foreign-currency claims converted to ${base} at European Central Bank rates dated ${_fxCache.date}.${anyMissing ? '  * Some rates were unavailable — see table.' : ''}`,
+      doc.text(`Foreign-currency claims converted to ${base} using live rates from ${_fxCache.source || 'live FX'} (${_fxCache.date}).${anyMissing ? '  * Some rates were unavailable — see table.' : ''}`,
         20, y, { maxWidth: pageW - 40 });
     } else {
       doc.setTextColor(180,30,30);
@@ -1704,7 +1758,7 @@ async function generatePDF() {
     if (_fxCache) {
       const ty = doc.lastAutoTable.finalY + 4;
       doc.setFont('helvetica','italic').setFontSize(8).setTextColor(120,120,120);
-      doc.text(`FX rates as of ${_fxCache.date} (ECB / frankfurter.app). 1 ${base} = ` +
+      doc.text(`FX rates from ${_fxCache.source || 'live source'} (${_fxCache.date}). 1 ${base} = ` +
         Object.entries(_fxCache.rates).slice(0,6).map(([c,r]) => `${r.toFixed(4)} ${c}`).join(', ') + (Object.keys(_fxCache.rates).length>6?', …':''),
         20, ty, { maxWidth: pageW - 40 });
       doc.setTextColor(0,0,0);
