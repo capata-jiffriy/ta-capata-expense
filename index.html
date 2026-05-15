@@ -419,7 +419,7 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 // its URL here. The app will then use the Worker for AI auto-fill so users
 // don't need to paste their own API key. Leave empty to fall back to the
 // per-user "paste key in Profile" flow.
-const AI_PROXY_URL = 'https://ta-expense.jchandra.workers.dev';
+const AI_PROXY_URL = 'https://ta-expense-claim-proxy.vercel.app/api/proxy';
 
 const STORAGE_KEYS = { profile:'ta_expense_profile', claims:'ta_expense_claims' };
 let profile = null;
