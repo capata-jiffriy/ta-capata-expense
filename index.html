@@ -76,6 +76,12 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 .status-pill{font-size:10px;padding:2px 7px;border-radius:99px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
 .status-draft{background:rgba(91,156,246,.1);color:var(--blue);}
 .status-submitted{background:rgba(52,211,153,.1);color:var(--green);}
+.status-hold{background:rgba(251,191,36,.12);color:var(--amber);}
+.status-noreceipt{background:rgba(248,113,113,.10);color:var(--red);}
+.action-sheet-btn{display:flex;align-items:center;gap:10px;width:100%;padding:14px 16px;background:var(--bg-elev);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;font-weight:500;margin-bottom:8px;justify-content:flex-start;}
+.action-sheet-btn .icn{font-size:18px;}
+.action-sheet-btn.danger{color:var(--red);border-color:rgba(248,113,113,.3);}
+.action-sheet-btn.amber{color:var(--amber);border-color:rgba(251,191,36,.3);}
 
 /* Selectable claim (for report) */
 .claim.selectable{cursor:pointer;}
@@ -160,19 +166,22 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     </div>
   </div>
 
-  <label class="lbl">Your full name</label>
-  <input id="setup-name" placeholder="e.g. Jiffriy Chandra" autocomplete="name">
-
-  <label class="lbl">Your work email</label>
-  <input id="setup-email" type="email" placeholder="e.g. jchandra@capata.sg" autocomplete="email">
-
   <label class="lbl">Company / entity</label>
-  <select id="setup-company">
+  <select id="setup-company" onchange="onCompanyChange('setup-name','setup-name-other','setup-company')">
     <option value="">Select...</option>
     <option value="TransAsia HK">TransAsia (Hong Kong)</option>
     <option value="TransAsia SG">TransAsia (Singapore)</option>
     <option value="Capata">Capata Pte Ltd</option>
   </select>
+
+  <label class="lbl">Your full name</label>
+  <select id="setup-name" onchange="onNameSelectChange('setup-name','setup-name-other','setup-email','setup-company')">
+    <option value="">Select company first…</option>
+  </select>
+  <input id="setup-name-other" placeholder="Type your name (first + last)" autocomplete="name" style="display:none;margin-top:6px;">
+
+  <label class="lbl">Your work email</label>
+  <input id="setup-email" type="email" placeholder="e.g. jchandra@capata.sg" autocomplete="email">
 
   <label class="lbl">Admin email (for sending reports)</label>
   <input id="setup-admin-email" type="email" placeholder="e.g. taexpenseclaim@gmail.com" value="taexpenseclaim@gmail.com" autocomplete="email">
@@ -227,6 +236,11 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 
     <label class="lbl">Trip / project label (optional)</label>
     <input id="f-trip" placeholder="e.g. KL Trip May 2026" autocomplete="off">
+    <div id="trip-suggest" style="margin-top:6px;display:none;font-size:11px;color:var(--text-3);">
+      <span>Recent:</span>
+      <span id="trip-suggest-chips"></span>
+      <button type="button" id="trip-suggest-clear" onclick="clearTripField()" style="background:none;border:none;color:var(--text-3);font-size:11px;cursor:pointer;padding:2px 6px;text-decoration:underline;">clear</button>
+    </div>
 
     <label class="lbl">Expense title <span style="color:var(--red);">*</span></label>
     <input id="f-title" placeholder="e.g. Taxi to airport" autocomplete="off">
@@ -271,14 +285,19 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     <label class="lbl">Notes (optional)</label>
     <textarea id="f-notes" placeholder="Anything the reviewer should know..."></textarea>
 
-    <label class="lbl">Receipt photo(s) <span style="color:var(--red);">*</span> <span style="text-transform:none;letter-spacing:0;color:var(--text-3);font-weight:400;">— multi-page OK</span></label>
-    <input id="f-receipt" type="file" accept="image/*" capture="environment" multiple onchange="onReceiptSelected(event)">
+    <label class="lbl">Receipt photo(s) <span id="f-receipt-required" style="color:var(--red);">*</span> <span style="text-transform:none;letter-spacing:0;color:var(--text-3);font-weight:400;">— multi-page OK</span></label>
+    <input id="f-receipt" type="file" accept="image/*" multiple onchange="onReceiptSelected(event)">
+
+    <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;cursor:pointer;font-size:13px;color:var(--text-2);">
+      <input type="checkbox" id="f-no-receipt" onchange="onNoReceiptToggle(event)" style="width:auto;margin-top:2px;flex-shrink:0;">
+      <span>No receipt available (lost / not issued) — director will review manually</span>
+    </label>
     <div id="receipt-pages" style="display:none;margin-top:10px;"></div>
     <div id="add-page-row" style="display:none;margin-top:10px;">
       <label for="f-receipt-more" class="btn" style="border:1px dashed var(--border-strong);background:transparent;justify-content:center;cursor:pointer;">
         ➕ Add another page
       </label>
-      <input id="f-receipt-more" type="file" accept="image/*" capture="environment" multiple onchange="onReceiptSelected(event)" style="display:none;">
+      <input id="f-receipt-more" type="file" accept="image/*" multiple onchange="onReceiptSelected(event)" style="display:none;">
     </div>
 
     <!-- AI auto-fill — appears once at least one page is attached -->
@@ -367,16 +386,19 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     <div class="modal-title">Edit Profile</div>
     <div class="modal-sub">Update your details</div>
 
-    <label class="lbl">Name</label>
-    <input id="e-name">
-    <label class="lbl">Email</label>
-    <input id="e-email" type="email">
     <label class="lbl">Company</label>
-    <select id="e-company">
+    <select id="e-company" onchange="onCompanyChange('e-name','e-name-other','e-company')">
       <option value="TransAsia HK">TransAsia (Hong Kong)</option>
       <option value="TransAsia SG">TransAsia (Singapore)</option>
       <option value="Capata">Capata Pte Ltd</option>
     </select>
+    <label class="lbl">Name</label>
+    <select id="e-name" onchange="onNameSelectChange('e-name','e-name-other','e-email','e-company')">
+      <option value="">Select…</option>
+    </select>
+    <input id="e-name-other" placeholder="Type your name" autocomplete="name" style="display:none;margin-top:6px;">
+    <label class="lbl">Email</label>
+    <input id="e-email" type="email">
     <label class="lbl">Admin email</label>
     <input id="e-admin" type="email">
 
@@ -391,6 +413,24 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 
     <button class="btn btn-gold" style="margin-top:18px;" onclick="saveProfile()">Save</button>
     <button class="btn btn-ghost" style="margin-top:8px;" onclick="closeModal('edit-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Claim action sheet -->
+<div class="modal-bg" id="action-modal">
+  <div class="modal" style="padding:18px;">
+    <div class="modal-title" id="action-title">Claim</div>
+    <div class="modal-sub" id="action-sub">Choose an action</div>
+
+    <button class="action-sheet-btn amber" id="action-hold-btn" type="button" onclick="actionToggleHold()">
+      <span class="icn">⏸</span>
+      <span id="action-hold-label">Put on hold (exclude from next report)</span>
+    </button>
+    <button class="action-sheet-btn danger" type="button" onclick="actionDelete()">
+      <span class="icn">🗑</span>
+      <span>Delete this claim</span>
+    </button>
+    <button class="btn btn-ghost" style="margin-top:10px;" type="button" onclick="closeModal('action-modal')">Cancel</button>
   </div>
 </div>
 
@@ -421,7 +461,39 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 // per-user "paste key in Profile" flow.
 const AI_PROXY_URL = 'https://ta-expense-claim-proxy.vercel.app/api/proxy';
 
-const STORAGE_KEYS = { profile:'ta_expense_profile', claims:'ta_expense_claims' };
+// Known staff per entity — used for the name dropdown on Setup and Edit Profile.
+// When a user picks a name from the dropdown, their email auto-fills.
+// Add more entries here as they're confirmed; users not on the list can still type their name via "Other".
+const EMPLOYEES = {
+  'TransAsia HK': [
+    { name:'Jiffriy Chandra', email:'jchandra@taprivatecapital.com' },
+    { name:'Eddie Wong',      email:'ewong@taprivatecapital.com' },
+    { name:'Calvin Tseng',    email:'tseng@taprivatecapital.com' },
+    { name:'Tenzan Wong',     email:'twong@taprivatecapital.com' },
+  ],
+  'TransAsia SG': [],
+  'Capata': [],
+};
+
+// Find an employee record by company + name
+function findEmployee(company, name) {
+  const list = EMPLOYEES[company] || [];
+  return list.find(e => e.name === name) || null;
+}
+
+// Official legal entity names — used on the PDF report cover, per-page headers,
+// and the Profile screen. The internal company code (e.g. "TransAsia HK") is
+// kept compact for use in dropdowns and the top pill.
+const ENTITY_NAMES = {
+  'TransAsia HK':  'TransAsia Private Capital Ltd',
+  'TransAsia SG':  'TransAsia Private Capital Singapore Pte Ltd',
+  'Capata':        'Capata Pte Ltd.',
+};
+function getEntityName(code) {
+  return ENTITY_NAMES[code] || code || '';
+}
+
+const STORAGE_KEYS = { profile:'ta_expense_profile', claims:'ta_expense_claims', lastTrip:'ta_expense_last_trip' };
 let profile = null;
 let claims = [];
 let pendingPages = [];            // [{ dataUrl, name }] — receipt pages for the in-progress claim
@@ -485,18 +557,113 @@ function loadState() {
 function saveProfileToStorage() { return storageSet(STORAGE_KEYS.profile, JSON.stringify(profile)); }
 function saveClaimsToStorage() { return storageSet(STORAGE_KEYS.claims, JSON.stringify(claims)); }
 
+// ─── TRIP MEMORY ──────────────────────────────────────────────────────────
+// Remember the user's most recently used trip label so consecutive receipts
+// for the same trip don't require re-typing.
+function rememberLastTrip(trip) {
+  if (trip && trip.trim()) storageSet(STORAGE_KEYS.lastTrip, trip.trim());
+}
+function getLastTrip() {
+  return storageGet(STORAGE_KEYS.lastTrip) || '';
+}
+let _tripSuggestions = [];
+function renderTripSuggestions() {
+  const wrap = document.getElementById('trip-suggest');
+  const chips = document.getElementById('trip-suggest-chips');
+  if (!wrap || !chips) return;
+  // Most-recent-first, deduped
+  const seen = new Set();
+  const recent = [];
+  for (let i = claims.length - 1; i >= 0 && recent.length < 5; i--) {
+    const t = claims[i].trip;
+    if (t && !seen.has(t)) { seen.add(t); recent.push(t); }
+  }
+  _tripSuggestions = recent;
+  if (recent.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  chips.innerHTML = recent.map((t,i) =>
+    `<button type="button" onclick="useTripSuggestion(${i})" style="display:inline-block;margin:0 4px 4px 0;padding:3px 8px;border-radius:99px;background:var(--bg-elev);border:1px solid var(--border);color:var(--gold);font-size:11px;cursor:pointer;">${escapeHtml(t)}</button>`
+  ).join('');
+}
+function useTripSuggestion(i) {
+  const t = _tripSuggestions[i];
+  if (t) document.getElementById('f-trip').value = t;
+}
+function clearTripField() {
+  const el = document.getElementById('f-trip');
+  if (el) el.value = '';
+}
+
 // ─── SETUP ────────────────────────────────────────────────────────────────
+// Populate the name dropdown for the current company and reveal/hide the
+// "Other / type a name" text input as needed. Used by both setup and edit-profile.
+function populateNameDropdown(selectId, otherId, company, currentName) {
+  const sel = document.getElementById(selectId);
+  const other = document.getElementById(otherId);
+  if (!sel) return;
+  const list = (EMPLOYEES[company] || []);
+  let html = '<option value="">' + (company ? 'Select your name…' : 'Select company first…') + '</option>';
+  let matched = false;
+  for (const emp of list) {
+    const isCurrent = currentName && currentName === emp.name;
+    if (isCurrent) matched = true;
+    html += `<option value="${escapeHtml(emp.name)}"${isCurrent ? ' selected' : ''}>${escapeHtml(emp.name)}</option>`;
+  }
+  if (currentName && !matched) {
+    html += `<option value="${escapeHtml(currentName)}" selected>${escapeHtml(currentName)} (custom)</option>`;
+  }
+  html += '<option value="__other__">Other / type a new name…</option>';
+  sel.innerHTML = html;
+  if (other) other.style.display = sel.value === '__other__' ? 'block' : 'none';
+}
+
+function onCompanyChange(nameSelectId, nameOtherId, companyId) {
+  const company = document.getElementById(companyId).value;
+  populateNameDropdown(nameSelectId, nameOtherId, company, '');
+}
+
+// When a name is picked, auto-fill the associated work email (if we know it).
+// Pass emailId + companyId optionally so the same handler works on Setup and Edit Profile.
+function onNameSelectChange(selectId, otherId, emailId, companyId) {
+  const sel = document.getElementById(selectId);
+  const other = document.getElementById(otherId);
+  if (!sel || !other) return;
+  if (sel.value === '__other__') {
+    other.style.display = 'block';
+    other.value = '';
+    other.focus();
+  } else {
+    other.style.display = 'none';
+    // Auto-fill email when a known employee is picked
+    if (emailId && companyId) {
+      const company = document.getElementById(companyId).value;
+      const emp = findEmployee(company, sel.value);
+      const emailEl = document.getElementById(emailId);
+      if (emp && emp.email && emailEl) emailEl.value = emp.email;
+    }
+  }
+}
+
+// Resolve the chosen name from the (select, otherInput) pair
+function resolveName(selectId, otherId) {
+  const sel = document.getElementById(selectId);
+  const other = document.getElementById(otherId);
+  const v = sel ? sel.value : '';
+  if (v === '__other__') return (other && other.value || '').trim();
+  return (v || '').trim();
+}
+
 // On the setup screen we use alert() — toasts at the bottom can sit behind
 // iOS Safari's URL/home bar and the user won't see them.
 function completeSetup() {
   try {
-    const name = document.getElementById('setup-name').value.trim();
+    const name = resolveName('setup-name', 'setup-name-other');
     const email = document.getElementById('setup-email').value.trim();
     const company = document.getElementById('setup-company').value;
     const adminEmail = document.getElementById('setup-admin-email').value.trim();
-    if (!name)                              { alert('Please enter your full name.'); return; }
+    if (!company)                           { alert('Please select your company / entity first.'); return; }
+    if (!name)                              { alert('Please select or type your full name.'); return; }
     if (!email || !email.includes('@'))     { alert('Please enter a valid email address (must contain @).'); return; }
-    if (!company)                           { alert('Please select your company / entity.'); return; }
     if (!adminEmail || !adminEmail.includes('@')) { alert('Please enter the admin email.'); return; }
 
     profile = { name, email, company, adminEmail, createdAt: new Date().toISOString() };
@@ -522,6 +689,19 @@ function goTo(page) {
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.page === page));
   window.scrollTo(0,0);
+  // Re-render lists whenever they come back into view so they reflect the latest state
+  if (page === 'claims') renderClaims();
+  if (page === 'profile' && profile) renderAll();
+  if (page === 'submit') {
+    // Pre-fill the trip label with the most recent one if the field is empty —
+    // saves re-typing when scanning multiple receipts from the same trip.
+    const fTrip = document.getElementById('f-trip');
+    if (fTrip && !fTrip.value.trim()) {
+      const last = getLastTrip();
+      if (last) fTrip.value = last;
+    }
+    renderTripSuggestions();
+  }
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────────────
@@ -529,7 +709,7 @@ function renderAll() {
   document.getElementById('user-pill').textContent = profile.name.split(' ')[0] + ' · ' + profile.company;
   document.getElementById('p-name').textContent = profile.name;
   document.getElementById('p-email').textContent = profile.email;
-  document.getElementById('p-company').textContent = profile.company;
+  document.getElementById('p-company').textContent = getEntityName(profile.company);
   document.getElementById('p-admin').textContent = profile.adminEmail;
   const aiEl = document.getElementById('p-ai');
   if (aiEl) {
@@ -599,9 +779,13 @@ function claimRowHTML(c) {
   const pageCount = (c.receipts && c.receipts.length) || (c.receipt ? 1 : 0);
   const thumb = firstReceipt ? `<img src="${firstReceipt}">` : catIcon;
   const pageBadge = pageCount > 1 ? `<span class="badge-pages">${pageCount} pages</span>` : '';
-  const statusPill = c.status === 'Submitted'
-    ? '<span class="status-pill status-submitted">Submitted</span>'
-    : '<span class="status-pill status-draft">Draft</span>';
+  const statusPill =
+      c.status === 'Submitted' ? '<span class="status-pill status-submitted">Submitted</span>'
+    : c.status === 'Hold'      ? '<span class="status-pill status-hold">⏸ On hold</span>'
+    :                            '<span class="status-pill status-draft">Draft</span>';
+  const noReceiptPill = c.noReceipt
+    ? ' <span class="status-pill status-noreceipt">no receipt</span>'
+    : '';
   const tripLabel = c.trip ? `· ${escapeHtml(c.trip)}` : '';
   return `
     <div class="claim" onclick="viewClaim('${c.id}')">
@@ -613,7 +797,7 @@ function claimRowHTML(c) {
           <span>· ${c.category}</span>
           ${tripLabel}
         </div>
-        <div style="margin-top:6px;">${statusPill}${pageBadge}</div>
+        <div style="margin-top:6px;">${statusPill}${noReceiptPill}${pageBadge}</div>
       </div>
       <div class="claim-amount">${c.currency} ${c.amount.toFixed(2)}</div>
     </div>`;
@@ -622,16 +806,54 @@ function claimRowHTML(c) {
 function filterTrip(t) { activeTripFilter = t; renderClaims(); }
 
 // ─── CLAIM ACTIONS ────────────────────────────────────────────────────────
+let _actionClaimId = null;
+
 function viewClaim(id) {
   const c = claims.find(x => x.id === id);
   if (!c) return;
-  const msg = `${c.title}\n\n${c.category} · ${c.currency} ${c.amount.toFixed(2)}\nDate: ${c.date}${c.trip?'\nTrip: '+c.trip:''}${c.notes?'\n\nNotes: '+c.notes:''}\n\nStatus: ${c.status}`;
-  if (confirm(msg + '\n\nDelete this claim?')) {
-    claims = claims.filter(x => x.id !== id);
-    saveClaimsToStorage();
-    renderClaims();
-    toast('Claim deleted','success');
+  _actionClaimId = id;
+
+  // Header summary
+  const summary = `${c.category} · ${c.currency} ${c.amount.toFixed(2)} · ${c.date}` +
+    (c.trip ? ' · ' + c.trip : '') +
+    (c.noReceipt ? ' · no receipt' : '');
+  document.getElementById('action-title').textContent = c.title;
+  document.getElementById('action-sub').textContent = summary + (c.notes ? '\n\nNotes: ' + c.notes : '');
+
+  // Hold/Release toggle label
+  const holdBtn = document.getElementById('action-hold-btn');
+  const holdLabel = document.getElementById('action-hold-label');
+  if (c.status === 'Submitted') {
+    holdBtn.style.display = 'none';
+  } else {
+    holdBtn.style.display = '';
+    holdLabel.textContent = c.status === 'Hold'
+      ? 'Release from hold (include in next report)'
+      : 'Put on hold (exclude from next report)';
   }
+
+  document.getElementById('action-modal').classList.add('show');
+}
+
+function actionToggleHold() {
+  if (!_actionClaimId) return;
+  const c = claims.find(x => x.id === _actionClaimId);
+  if (!c) return;
+  c.status = c.status === 'Hold' ? 'Draft' : 'Hold';
+  saveClaimsToStorage();
+  closeModal('action-modal');
+  renderClaims();
+  toast(c.status === 'Hold' ? 'Claim put on hold' : 'Claim released — back in pool','success');
+}
+
+function actionDelete() {
+  if (!_actionClaimId) return;
+  if (!confirm('Delete this claim? This cannot be undone.')) return;
+  claims = claims.filter(x => x.id !== _actionClaimId);
+  saveClaimsToStorage();
+  closeModal('action-modal');
+  renderClaims();
+  toast('Claim deleted','success');
 }
 
 // ─── SUBMIT FORM ──────────────────────────────────────────────────────────
@@ -817,6 +1039,27 @@ function clearReceipts() {
   const more = document.getElementById('f-receipt-more'); if (more) more.value = '';
   renderReceiptPages();
   const st = document.getElementById('ai-fill-status'); if (st) st.style.display = 'none';
+  // Also reset the "no receipt" checkbox
+  const nr = document.getElementById('f-no-receipt');
+  if (nr) { nr.checked = false; onNoReceiptToggle({ target: nr }); }
+}
+
+// Toggle the "no receipt" mode — hide the file inputs and AI button, drop the red asterisk
+function onNoReceiptToggle(ev) {
+  const checked = ev.target.checked;
+  const required = document.getElementById('f-receipt-required');
+  const fileInput = document.getElementById('f-receipt');
+  const pages = document.getElementById('receipt-pages');
+  const addRow = document.getElementById('add-page-row');
+  const aiRow = document.getElementById('ai-fill-row');
+  const status = document.getElementById('ai-fill-status');
+
+  if (required) required.style.display = checked ? 'none' : '';
+  if (fileInput) fileInput.style.display = checked ? 'none' : '';
+  if (pages) pages.style.display = checked ? 'none' : (pendingPages.length ? 'block' : 'none');
+  if (addRow) addRow.style.display = checked ? 'none' : (pendingPages.length ? 'block' : 'none');
+  if (aiRow) aiRow.style.display = checked ? 'none' : (pendingPages.length ? 'block' : 'none');
+  if (status) status.style.display = checked ? 'none' : status.style.display;
 }
 
 // ─── AI VISION AUTO-FILL ──────────────────────────────────────────────────
@@ -923,24 +1166,37 @@ function applyAutoFill(p) {
   }
   if (p.notes) {
     const el = document.getElementById('f-notes');
-    if (el && !el.value) el.value = String(p.notes).slice(0,200);
+    if (el && !el.value) el.value = String(p.notes).slice(0,500);
   }
 }
 
-const VISION_PROMPT = `You are an expense receipt parser. Look at this receipt image and extract structured data.
+const VISION_PROMPT = `You are an expense receipt parser. Look at the receipt image(s) and extract structured data.
 
 Return ONLY valid JSON, no markdown fences, no commentary. Schema:
 {
   "title": "Brief description: merchant + what was purchased (3-8 words)",
   "merchant": "Merchant or vendor name",
-  "amount": <number — the TOTAL paid (incl. tax/tip)>,
+  "amount": <number — see rules below>,
   "currency": "ISO 4217: SGD, HKD, USD, MYR, IDR, THB, JPY, CNY, EUR, GBP",
   "date": "YYYY-MM-DD",
   "category": "ONE of: Travel | Accommodation | Meals | Client Entertainment | Transport | Office Supplies | Communication | Other",
-  "notes": "Anything notable, max 100 chars, or empty string"
+  "notes": "string up to 300 chars, see rules below"
 }
 
-Use null for fields you can't determine. Pick the category that best fits — restaurants/cafés = Meals; taxis/Grab/Uber/MRT = Transport; flights/trains = Travel; hotels = Accommodation; SIM/data/phone = Communication; pens/paper = Office Supplies; group dinners with clients = Client Entertainment.`;
+AMOUNT rules:
+- For a single-purchase receipt: the TOTAL paid (including tax/tip).
+- For a multi-line statement (e.g. an Uber monthly summary with 4 rides, a hotel folio with several nights, a corporate card statement): SUM all the line-item charges and put the total in "amount". In "notes", list each line item as "YYYY-MM-DD: description — CCY amount" separated by newlines or " · ". Example for an Uber statement:
+    notes: "2026-05-01: Airport — SGD 32.50 · 2026-05-03: KLCC — SGD 18.20 · 2026-05-05: Downtown — SGD 24.00"
+- For a multi-page single receipt (e.g. long itemised dinner bill where page 2 just shows the credit-card slip): treat as ONE purchase. The total appears once.
+
+DATE rules:
+- For multi-line statements, set "date" to the latest charge date (when the statement closes / when reimbursement is being requested).
+- For single receipts, use the receipt's date.
+
+CATEGORY heuristics:
+restaurants/cafés/food delivery = Meals; taxis/Grab/Uber/MRT/bus = Transport; flights/trains/long-distance = Travel; hotels/Airbnb = Accommodation; SIM/data/phone bills = Communication; pens/paper/stationery = Office Supplies; group dinners hosted with clients/customers = Client Entertainment.
+
+Use null for any field you can't determine. Return JSON only.`;
 
 async function callVisionAPI(ai, dataUrls) {
   // ai = { mode:'proxy'|'direct', provider?, key? }
@@ -1075,10 +1331,15 @@ function saveClaim() {
   const title = document.getElementById('f-title').value.trim();
   const amount = parseFloat(document.getElementById('f-amount').value);
   const date = document.getElementById('f-date').value;
+  const noReceipt = !!document.getElementById('f-no-receipt').checked;
   if (!title) return toast('Please enter a title','error');
   if (!amount || amount <= 0) return toast('Please enter a valid amount','error');
   if (!date) return toast('Please select a date','error');
-  if (pendingPages.length === 0) return toast('Please attach at least one receipt page','error');
+  if (!noReceipt && pendingPages.length === 0) {
+    return toast('Attach a receipt OR tick "No receipt available"','error');
+  }
+  // If no-receipt is ticked but user attached pages, save the pages anyway —
+  // they may have a partial photo (e.g. of the item) for evidence.
 
   const claim = {
     id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
@@ -1091,25 +1352,32 @@ function saveClaim() {
     notes: document.getElementById('f-notes').value.trim(),
     receipts: pendingPages.map(p => p.dataUrl),
     receiptNames: pendingPages.map(p => p.name),
+    noReceipt,
     status: 'Draft',
     createdAt: new Date().toISOString(),
   };
 
-  // Storage size check via wrapped storageSet
+  // Save via wrapped storageSet (in-memory always succeeds; persistence may fail)
   const newClaims = [...claims, claim];
   const res = storageSet(STORAGE_KEYS.claims, JSON.stringify(newClaims));
-  if (!res.ok) {
-    toast('Storage full — generate a report and clear old claims','error');
-    return;
-  }
   claims = newClaims;
+  rememberLastTrip(claim.trip);  // for sticky-trip pre-fill on next claim
 
   // Reset form
   document.getElementById('f-title').value = '';
   document.getElementById('f-amount').value = '';
   document.getElementById('f-notes').value = '';
   clearReceipts();
-  toast('Claim saved','success');
+
+  if (res.persisted) {
+    toast('Claim saved','success');
+  } else {
+    // In-memory only — warn loudly so user knows data won't survive a refresh
+    alert('Claim saved to memory but could NOT be saved to device storage.\n\n' +
+          'Most likely cause: storage is full from previous receipts (each photo is ~300 KB).\n\n' +
+          'Action: Generate an Expense Report from existing claims to free space, then come back. ' +
+          'Or use the "Clear all claims" button in Profile after backing up.');
+  }
   goTo('claims');
 }
 
@@ -1120,7 +1388,8 @@ function openReportModal() {
     toast('No unsubmitted claims to report','error');
     return;
   }
-  reportSelection = new Set(eligible.map(c => c.id));
+  // Default: select all Draft claims, leave Hold claims unticked (visible but excluded)
+  reportSelection = new Set(eligible.filter(c => c.status !== 'Hold').map(c => c.id));
   renderReportList();
   document.getElementById('report-modal').classList.add('show');
   // Pre-fetch FX rates so the running total updates with base-currency conversion
@@ -1197,11 +1466,13 @@ function renderReportList() {
   el.innerHTML = eligible.map(c => {
     const sel = reportSelection.has(c.id);
     const catIcon = { Travel:'✈️', Accommodation:'🏨', Meals:'🍽', 'Client Entertainment':'🥂', Transport:'🚕', 'Office Supplies':'📎', Communication:'📱', Other:'📌' }[c.category] || '📌';
+    const holdMark = c.status === 'Hold' ? ' <span class="status-pill status-hold">⏸ hold</span>' : '';
+    const noRcpMark = c.noReceipt ? ' <span class="status-pill status-noreceipt">no receipt</span>' : '';
     return `
       <div class="claim selectable ${sel?'selected':''}" onclick="toggleReportSelect('${c.id}')">
         <div class="checkbox">${sel?'✓':''}</div>
         <div class="claim-body">
-          <div class="claim-title">${catIcon} ${escapeHtml(c.title)}</div>
+          <div class="claim-title">${catIcon} ${escapeHtml(c.title)}${holdMark}${noRcpMark}</div>
           <div class="claim-meta"><span>${c.date}</span>${c.trip?'<span>· '+escapeHtml(c.trip)+'</span>':''}</div>
         </div>
         <div class="claim-amount">${c.currency} ${c.amount.toFixed(2)}</div>
@@ -1304,7 +1575,7 @@ async function generatePDF() {
     };
     writeRow('Submitted by:', profile.name);
     writeRow('Email:', profile.email);
-    writeRow('Company:', profile.company);
+    writeRow('Entity:', getEntityName(profile.company));
     writeRow('Report date:', new Date().toISOString().slice(0,10));
     writeRow('Claim period:', dateFrom === dateTo ? dateFrom : `${dateFrom}  to  ${dateTo}`);
     writeRow('Number of claims:', selected.length);
@@ -1364,7 +1635,7 @@ async function generatePDF() {
       head: [['#','Date','Category','Title','Trip','Curr','Amount',`${base}`]],
       body: selected.map((c,i) => [
         i+1, c.date, c.category,
-        truncate(c.title, 34),
+        truncate(c.title + (c.noReceipt ? '  [no receipt]' : ''), 34),
         truncate(c.trip || '—', 18),
         c.currency, c.amount.toFixed(2),
         baseValues[i] != null ? baseValues[i].toFixed(2) : '—'
@@ -1405,6 +1676,58 @@ async function generatePDF() {
       const pages = (c.receipts && c.receipts.length) ? c.receipts : (c.receipt ? [c.receipt] : []);
       const totalPages = pages.length || 1;
 
+      // Special handling: no-receipt claim → single placeholder page with details + note
+      if (c.noReceipt && pages.length === 0) {
+        doc.addPage();
+        doc.setTextColor(0,0,0);
+        doc.setFont('helvetica','bold').setFontSize(12);
+        doc.text(`Receipt ${i+1} of ${selected.length}  ·  NO RECEIPT PROVIDED`, 20, 18);
+        doc.setFont('helvetica','normal').setFontSize(10);
+        doc.setTextColor(120,120,120);
+        doc.text(profile.name + ' · ' + getEntityName(profile.company), pageW - 20, 18, { align:'right' });
+
+        doc.setTextColor(0,0,0);
+        doc.setFont('helvetica','bold').setFontSize(11);
+        doc.text(c.title, 20, 30);
+        doc.setFont('helvetica','normal').setFontSize(10);
+        let yy2 = 38;
+        const det2 = (k,v) => {
+          doc.setFont('helvetica','bold'); doc.text(k+':', 20, yy2);
+          doc.setFont('helvetica','normal'); doc.text(String(v), 50, yy2);
+          yy2 += 6;
+        };
+        det2('Date', c.date);
+        det2('Category', c.category);
+        det2('Amount', `${c.currency} ${c.amount.toFixed(2)}`);
+        if (c.trip) det2('Trip', c.trip);
+        if (c.notes) {
+          doc.setFont('helvetica','bold'); doc.text('Notes:', 20, yy2);
+          doc.setFont('helvetica','normal');
+          const noteLines = doc.splitTextToSize(c.notes, pageW - 70);
+          doc.text(noteLines, 50, yy2);
+          yy2 += noteLines.length * 5 + 1;
+        }
+
+        // Placeholder banner
+        const boxY = yy2 + 12;
+        doc.setDrawColor(220,80,80);
+        doc.setFillColor(252,232,232);
+        doc.roundedRect(20, boxY, pageW - 40, 50, 4, 4, 'FD');
+        doc.setTextColor(180,30,30);
+        doc.setFont('helvetica','bold').setFontSize(13);
+        doc.text('⚠  No receipt provided', pageW/2, boxY + 18, { align:'center' });
+        doc.setFont('helvetica','normal').setFontSize(10);
+        doc.setTextColor(80,30,30);
+        const placeholderText = doc.splitTextToSize(
+          'The employee has indicated no receipt is available for this expense (lost, not issued, etc.). ' +
+          'Director: please review the claim details above and the notes, then accept or reject as appropriate.',
+          pageW - 60
+        );
+        doc.text(placeholderText, pageW/2, boxY + 30, { align:'center' });
+        doc.setTextColor(0,0,0);
+        continue;  // skip the inner page loop for this claim
+      }
+
       for (let pgIdx = 0; pgIdx < Math.max(1, pages.length); pgIdx++) {
         doc.addPage();
         doc.setTextColor(0,0,0);
@@ -1415,7 +1738,7 @@ async function generatePDF() {
         doc.text(pageLabel, 20, 18);
         doc.setFont('helvetica','normal').setFontSize(10);
         doc.setTextColor(120,120,120);
-        doc.text(profile.name + ' · ' + profile.company, pageW - 20, 18, { align:'right' });
+        doc.text(profile.name + ' · ' + getEntityName(profile.company), pageW - 20, 18, { align:'right' });
 
         let yy;
         if (pgIdx === 0) {
@@ -1509,15 +1832,16 @@ async function generatePDF() {
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────
 function editProfile() {
-  document.getElementById('e-name').value = profile.name;
-  document.getElementById('e-email').value = profile.email;
   document.getElementById('e-company').value = profile.company;
+  // Populate the name dropdown for this company, pre-selecting their current name
+  populateNameDropdown('e-name', 'e-name-other', profile.company, profile.name);
+  document.getElementById('e-email').value = profile.email;
   document.getElementById('e-admin').value = profile.adminEmail;
   document.getElementById('e-aikey').value = profile.aiKey || '';
   document.getElementById('edit-modal').classList.add('show');
 }
 function saveProfile() {
-  const name = document.getElementById('e-name').value.trim();
+  const name = resolveName('e-name', 'e-name-other');
   const email = document.getElementById('e-email').value.trim();
   const company = document.getElementById('e-company').value;
   const adminEmail = document.getElementById('e-admin').value.trim();
