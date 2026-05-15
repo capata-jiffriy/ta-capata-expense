@@ -331,6 +331,7 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
     </div>
 
     <button class="btn" style="margin-bottom:10px;" onclick="editProfile()">✏️ Edit profile &amp; AI key</button>
+    <button class="btn" style="margin-bottom:10px;" onclick="testFxRates()">💱 Test FX rates</button>
     <button class="btn" style="margin-bottom:10px;" onclick="exportData()">📦 Export data (JSON backup)</button>
     <button class="btn btn-danger" onclick="confirmClearAll()">🗑 Clear all claims</button>
 
@@ -371,7 +372,7 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
       <div style="display:flex;justify-content:space-between;font-weight:700;"><span style="color:var(--text-2);">Total reimbursement:</span><span id="rpt-base-total" style="color:var(--gold);font-size:16px;">—</span></div>
       <!-- rpt-total kept hidden for backward-compat with any code that still references it -->
       <span id="rpt-total" style="display:none;"></span>
-      <div id="rpt-fx-status" style="font-size:11px;margin-top:6px;color:var(--text-3);display:none;text-align:right;"></div>
+      <div id="rpt-fx-status" style="font-size:12px;margin-top:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:rgba(0,0,0,.25);color:var(--text-2);display:none;text-align:center;font-weight:500;"></div>
     </div>
 
     <button class="btn btn-gold" style="margin-top:18px;" id="rpt-go" onclick="generatePDF()">
@@ -1450,6 +1451,26 @@ function setRptFxStatus(msg, color) {
   el.style.color = color || 'var(--text-2)';
 }
 
+// Diagnostic: immediately test the FX service and show results in a popup
+async function testFxRates() {
+  const base = getBaseCurrency();
+  try {
+    alert('Testing FX rates from frankfurter.app…\nBase currency: ' + base + '\n(tap OK to run)');
+    // Force a fresh fetch by clearing the cache
+    _fxCache = null;
+    const res = await fetchFx(base);
+    if (!res || !res.rates) {
+      alert('✗ Test failed: response had no rates.');
+      return;
+    }
+    const sample = Object.entries(res.rates).slice(0, 6)
+      .map(([c, r]) => `  1 ${base} = ${r.toFixed(4)} ${c}`).join('\n');
+    alert(`✓ FX rates loaded\n\nBase: ${base}\nDate: ${res.date}\nRates fetched: ${Object.keys(res.rates).length}\n\nSample:\n${sample}\n\nExample conversion:\n  100 USD ≈ ${(100 / res.rates.USD).toFixed(2)} ${base}`);
+  } catch (e) {
+    alert('✗ FX test FAILED\n\nError: ' + (e.message || e) + '\n\nPossible causes:\n• No internet connection\n• Network blocking frankfurter.app\n• Browser blocked the request\n\nThe report will still be generated, but foreign-currency claims will show "—" in the FX column.');
+  }
+}
+
 // Convert an amount from currency X to base currency
 function toBase(amount, ccy) {
   if (!_fxCache) return null;
@@ -1534,6 +1555,21 @@ async function generatePDF() {
     // Ensure fresh FX rates before building the PDF
     await fetchFxIfNeeded();
     const base = getBaseCurrency();
+
+    // If FX failed AND we have foreign-currency claims, warn the user before continuing
+    const hasForeign = selected.some(c => c.currency !== base);
+    if (hasForeign && !_fxCache) {
+      const proceed = confirm(
+        '⚠ Live FX rates could not be loaded.\n\n' +
+        'Some claims are in a foreign currency. Without FX rates, the report will show "—" for converted amounts and the grand total will only include base-currency claims.\n\n' +
+        'Tap OK to generate the report anyway, or Cancel to retry. (You can also test the FX service from Profile → Test FX rates.)'
+      );
+      if (!proceed) {
+        btn.innerHTML = '📥 Generate &amp; Download PDF';
+        btn.disabled = false;
+        return;
+      }
+    }
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'mm', format:'a4' });
