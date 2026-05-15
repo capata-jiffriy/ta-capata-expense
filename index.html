@@ -368,8 +368,9 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
 
     <div style="background:var(--bg-elev);border-radius:10px;padding:12px;margin-top:14px;font-size:13px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--text-2);">Selected:</span><span id="rpt-count">0 claims</span></div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--text-2);">By currency:</span><span id="rpt-total" style="color:var(--gold);">—</span></div>
-      <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid var(--border);padding-top:6px;margin-top:6px;"><span style="color:var(--text-2);">Total (base ccy):</span><span id="rpt-base-total" style="color:var(--gold);font-size:15px;">—</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;"><span style="color:var(--text-2);">Total reimbursement:</span><span id="rpt-base-total" style="color:var(--gold);font-size:16px;">—</span></div>
+      <!-- rpt-total kept hidden for backward-compat with any code that still references it -->
+      <span id="rpt-total" style="display:none;"></span>
       <div id="rpt-fx-status" style="font-size:11px;margin-top:6px;color:var(--text-3);display:none;text-align:right;"></div>
     </div>
 
@@ -1539,12 +1540,10 @@ async function generatePDF() {
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
 
-    // Compute date range and totals
+    // Compute date range
     const dates = selected.map(c => c.date).sort();
     const dateFrom = dates[0], dateTo = dates[dates.length-1];
-    const totalsByCcy = {};
-    selected.forEach(c => { totalsByCcy[c.currency] = (totalsByCcy[c.currency]||0) + c.amount; });
-    // Per-claim base values + grand total in base
+    // Per-claim base values + grand total in base (only base-currency totals are reported)
     let grandBase = 0, anyMissing = false;
     const baseValues = selected.map(c => {
       const b = toBase(c.amount, c.currency);
@@ -1580,32 +1579,27 @@ async function generatePDF() {
     writeRow('Claim period:', dateFrom === dateTo ? dateFrom : `${dateFrom}  to  ${dateTo}`);
     writeRow('Number of claims:', selected.length);
 
-    y += 4;
-    doc.setFont('helvetica','bold').setFontSize(11);
-    doc.text('Totals by original currency:', 20, y); y += 7;
-    doc.setFont('helvetica','normal').setFontSize(12);
-    Object.entries(totalsByCcy).forEach(([ccy, sum]) => {
-      doc.text(`${ccy}  ${sum.toFixed(2)}`, 24, y); y += 6;
-    });
-
-    y += 3;
+    y += 6;
     doc.setDrawColor(201,169,110);
     doc.setLineWidth(0.4);
-    doc.line(20, y, pageW-20, y); y += 8;
+    doc.line(20, y, pageW-20, y); y += 10;
     doc.setLineWidth(0.2);
 
-    doc.setFont('helvetica','bold').setFontSize(11);
+    doc.setFont('helvetica','bold').setFontSize(12);
     doc.setTextColor(60,60,60);
-    doc.text(`Total reimbursement in base currency (${base}):`, 20, y); y += 8;
-    doc.setFont('helvetica','bold').setFontSize(16);
+    doc.text(`Total reimbursement requested (${base}):`, 20, y); y += 10;
+    doc.setFont('helvetica','bold').setFontSize(20);
     doc.setTextColor(120,90,30);
-    doc.text(`${base}  ${grandBase.toFixed(2)}${anyMissing ? '  *' : ''}`, 24, y); y += 7;
+    doc.text(`${base}  ${grandBase.toFixed(2)}${anyMissing ? '  *' : ''}`, 24, y); y += 9;
     doc.setTextColor(120,120,120);
     doc.setFont('helvetica','normal').setFontSize(9);
     if (_fxCache) {
-      doc.text(`FX rates from European Central Bank, dated ${_fxCache.date}.${anyMissing ? '  * Some rates were unavailable.' : ''}`, 20, y);
+      doc.text(`Foreign-currency claims converted to ${base} at European Central Bank rates dated ${_fxCache.date}.${anyMissing ? '  * Some rates were unavailable — see table.' : ''}`,
+        20, y, { maxWidth: pageW - 40 });
     } else {
-      doc.text('FX rates could not be fetched — base-currency total may be unavailable.', 20, y);
+      doc.setTextColor(180,30,30);
+      doc.text('⚠ FX rates could not be fetched. Foreign-currency claims could not be converted; total above only includes base-currency claims.',
+        20, y, { maxWidth: pageW - 40 });
     }
     y += 6;
     doc.setTextColor(0,0,0);
@@ -1630,33 +1624,43 @@ async function generatePDF() {
     doc.setFont('helvetica','bold').setFontSize(14);
     doc.text('Summary of Claims', 20, 20);
 
+    // For each claim, compute the FX rate used (claim ccy → base)
+    const rateUsed = selected.map(c => {
+      if (c.currency === base) return null;          // no conversion
+      if (!_fxCache || !_fxCache.rates) return null; // no rates available
+      const r = _fxCache.rates[c.currency];
+      if (!r || r === 0) return null;
+      return 1 / r;  // 1 unit of claim currency = (1/r) base
+    });
+
     doc.autoTable({
       startY: 28,
-      head: [['#','Date','Category','Title','Trip','Curr','Amount',`${base}`]],
+      head: [['#','Date','Category','Title','Trip','Curr','Amount','FX rate', base]],
       body: selected.map((c,i) => [
         i+1, c.date, c.category,
-        truncate(c.title + (c.noReceipt ? '  [no receipt]' : ''), 34),
-        truncate(c.trip || '—', 18),
-        c.currency, c.amount.toFixed(2),
+        truncate(c.title + (c.noReceipt ? '  [no receipt]' : ''), 30),
+        truncate(c.trip || '—', 16),
+        c.currency,
+        c.amount.toFixed(2),
+        c.currency === base ? '—' : (rateUsed[i] != null ? rateUsed[i].toFixed(4) : 'n/a'),
         baseValues[i] != null ? baseValues[i].toFixed(2) : '—'
       ]),
       foot: [
-        // Per-original-currency subtotals
-        ...Object.entries(totalsByCcy).map(([ccy,sum]) => ['', '', '', '', 'Subtotal', ccy, sum.toFixed(2), '']),
-        // Grand total in base
-        ['', '', '', '', '', `Total ${base}`, '', grandBase.toFixed(2)]
+        // Single grand-total row in base currency only — no per-currency subtotals
+        ['', '', '', '', '', '', `Total ${base}`, '', grandBase.toFixed(2)]
       ],
       styles: { fontSize: 9, cellPadding: 2.5 },
       headStyles: { fillColor: [201,169,110], textColor: 20, fontStyle:'bold' },
       footStyles: { fillColor: [240,240,240], textColor: 20, fontStyle:'bold' },
       columnStyles: {
-        0: { cellWidth: 8 },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 24 },
-        4: { cellWidth: 20 },
-        5: { cellWidth: 12 },
-        6: { cellWidth: 18, halign: 'right' },
-        7: { cellWidth: 22, halign: 'right', fontStyle:'bold' },
+        0: { cellWidth: 8 },                        // #
+        1: { cellWidth: 20 },                       // Date
+        2: { cellWidth: 22 },                       // Category
+        4: { cellWidth: 18 },                       // Trip
+        5: { cellWidth: 12 },                       // Curr
+        6: { cellWidth: 16, halign: 'right' },      // Amount
+        7: { cellWidth: 16, halign: 'right' },      // FX rate
+        8: { cellWidth: 20, halign: 'right', fontStyle:'bold' },  // Base
       },
     });
 
