@@ -340,7 +340,8 @@ label.lbl{display:block;font-size:12px;color:var(--text-2);text-transform:upperc
       To combine claims across devices: export from one device, AirDrop or email the file to the other, then import. Duplicates are skipped automatically.
     </div>
 
-    <div style="margin:18px 0 8px;font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Cleanup</div>
+    <div style="margin:18px 0 8px;font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Recovery &amp; cleanup</div>
+    <button class="btn" style="margin-bottom:10px;" onclick="unsubmitAllClaims()">↩️ Un-submit ALL (reset Submitted → Draft)</button>
     <button class="btn" style="margin-bottom:10px;" onclick="clearSubmittedClaims()">🧹 Clear submitted claims only</button>
     <button class="btn btn-danger" onclick="confirmClearAll()">🗑 Clear ALL claims</button>
 
@@ -1222,12 +1223,53 @@ async function autoFillFromReceipt() {
 }
 
 // Only fill fields the user hasn't already filled
+// Robust date parser — accepts anything the AI might return and converts to YYYY-MM-DD.
+// Returns null if the string can't be interpreted as a real date.
+function parseAiDate(s) {
+  if (s == null) return null;
+  let str = String(s).trim();
+  if (!str) return null;
+  // Strip time portion if present (e.g. "2026-05-15T14:30:00Z")
+  str = str.replace(/[T ]\d{1,2}:\d{1,2}.*$/, '');
+
+  // 1. Already ISO YYYY-MM-DD or YYYY/MM/DD
+  let m = str.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (m) {
+    const [, y, mo, d] = m;
+    return iso(y, mo, d);
+  }
+  // 2. DD/MM/YYYY or DD-MM-YYYY (HK/SG/UK common)
+  m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    return iso(y, mo, d);
+  }
+  // 3. "15 May 2026" / "May 15, 2026" / "15-May-2026"
+  const dt = new Date(str);
+  if (!isNaN(dt.getTime())) {
+    return iso(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  }
+  return null;
+  function iso(y, mo, d) {
+    const yyyy = String(y).padStart(4, '0');
+    const mm   = String(mo).padStart(2, '0');
+    const dd   = String(d).padStart(2, '0');
+    // Sanity-check ranges before returning
+    const yi = +yyyy, mi = +mm, di = +dd;
+    if (yi < 1900 || yi > 2100) return null;
+    if (mi < 1 || mi > 12) return null;
+    if (di < 1 || di > 31) return null;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+}
+
 function applyAutoFill(p) {
+  const todayStr = new Date().toISOString().slice(0,10);
   const setIfEmpty = (id, v) => {
     if (v == null || v === '') return;
     const el = document.getElementById(id);
     if (!el) return;
-    if (!el.value || el.value === '' || (id === 'f-date' && el.value === new Date().toISOString().slice(0,10))) {
+    if (!el.value || el.value === '' || (id === 'f-date' && el.value === todayStr)) {
       el.value = v;
     }
   };
@@ -1235,7 +1277,27 @@ function applyAutoFill(p) {
   const title = p.title || p.merchant || '';
   setIfEmpty('f-title', title);
   if (p.amount != null && !isNaN(Number(p.amount))) setIfEmpty('f-amount', Number(p.amount).toFixed(2));
-  if (p.date) setIfEmpty('f-date', String(p.date).slice(0,10));
+
+  // ── DATE — robust parsing, always overrides today's default ──────────
+  // The receipt date is the source of truth; today's default is just a UX nicety.
+  if (p.date) {
+    const parsed = parseAiDate(p.date);
+    if (parsed) {
+      const el = document.getElementById('f-date');
+      if (el) {
+        // Override today's default freely; preserve a user-entered different date
+        if (!el.value || el.value === '' || el.value === todayStr) {
+          el.value = parsed;
+        } else if (el.value !== parsed) {
+          // Field has a custom value different from the AI's reading — keep user's choice
+          console.log('AI date', parsed, 'differs from user-entered', el.value, '— keeping user value');
+        }
+      }
+    } else {
+      console.warn('AI returned an unparseable date:', p.date);
+    }
+  }
+
   if (p.currency) {
     const cur = String(p.currency).toUpperCase();
     const sel = document.getElementById('f-currency');
@@ -1271,9 +1333,15 @@ AMOUNT rules:
     notes: "2026-05-01: Airport — SGD 32.50 · 2026-05-03: KLCC — SGD 18.20 · 2026-05-05: Downtown — SGD 24.00"
 - For a multi-page single receipt (e.g. long itemised dinner bill where page 2 just shows the credit-card slip): treat as ONE purchase. The total appears once.
 
-DATE rules:
-- For multi-line statements, set "date" to the latest charge date (when the statement closes / when reimbursement is being requested).
-- For single receipts, use the receipt's date.
+DATE rules — IMPORTANT:
+- "date" must come FROM THE RECEIPT — the printed transaction date. NEVER use today's date.
+- Receipts in HK/SG/UK often print as DD/MM/YYYY (e.g. "15/05/2026"). Convert to YYYY-MM-DD format → "2026-05-15".
+- US receipts often print as MM/DD/YYYY (e.g. "05/15/2026"). Convert to YYYY-MM-DD format → "2026-05-15".
+- If the receipt shows "May 15, 2026" or "15 May 2026", return "2026-05-15".
+- For a single-purchase receipt: use that single transaction date.
+- For a multi-line statement (Uber monthly, hotel folio, card statement): use the LATEST charge date on the statement.
+- If the receipt has NO visible date AT ALL, return null. Do NOT guess today's date.
+- Output format MUST be ISO 8601: YYYY-MM-DD. Examples: "2026-05-15", "2026-12-03". Never "May 15", never "15/5/26".
 
 CATEGORY heuristics:
 restaurants/cafés/food delivery = Meals; taxis/Grab/Uber/MRT/bus = Transport; flights/trains/long-distance = Travel; hotels/Airbnb = Accommodation; SIM/data/phone bills = Communication; pens/paper/stationery = Office Supplies; group dinners hosted with clients/customers = Client Entertainment.
@@ -2203,6 +2271,27 @@ function importData() {
     );
   };
   input.click();
+}
+
+// Bulk un-submit — useful when regenerating a report after marking claims Submitted
+// Resets all Submitted claims to Draft so they show up in the next report.
+function unsubmitAllClaims() {
+  const submitted = claims.filter(c => c.status === 'Submitted');
+  if (submitted.length === 0) return toast('No submitted claims to un-submit','error');
+  if (!confirm(
+    `Reset ${submitted.length} Submitted claim${submitted.length===1?'':'s'} back to Draft?\n\n` +
+    `Use this when you need to regenerate a PDF report — for example, after a mistake or to add more claims to a batch you already marked as submitted.\n\n` +
+    `Your existing claims and receipts stay intact. Only the status changes.`
+  )) return;
+  const now = new Date().toISOString();
+  claims = claims.map(c => c.status === 'Submitted' ? { ...c, status:'Draft', unsubmittedAt: now } : c);
+  const res = saveClaimsToStorage();
+  renderClaims();
+  if (res.persisted) {
+    toast(`${submitted.length} claim${submitted.length===1?'':'s'} reset to Draft — go to Claims → Generate Expense Report`,'success');
+  } else {
+    alert(`✓ ${submitted.length} claim${submitted.length===1?'':'s'} reset to Draft in memory.\n\n⚠ But storage is full — these changes will be lost if you close the app.\n\nExport the JSON now and use the import flow to recover.`);
+  }
 }
 
 // Clear ONLY submitted claims — keep drafts and held claims
